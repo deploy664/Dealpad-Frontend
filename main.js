@@ -1,0 +1,293 @@
+console.log("🔥 main.js loaded");
+
+// 1️⃣ Get agent ID
+const agentId = localStorage.getItem("agentId");
+if (!agentId) {
+    window.location.href = "login.html";
+}
+
+const socket = window.socket;
+
+// DOM Elements
+const customerList = document.getElementById("customerList");
+const chatBox = document.getElementById("chatBox");
+const customerName = document.getElementById("customerName");
+const messageInput = document.getElementById("messageInput");
+const sendBtn = document.getElementById("sendBtn");
+
+const attachBtn = document.getElementById("attachBtn");
+const fileInput = document.getElementById("fileInput");
+const recordBtn = document.getElementById("recordBtn");
+
+let activeCustomer = null;
+
+// ======================================================
+// ⭐ AUTO-ADD NEW CUSTOMER IF NOT EXISTS (FIX)
+// ======================================================
+function addCustomerIfNotExists(number) {
+    let exists = Array.from(customerList.children).some(li => li.textContent === number);
+    if (!exists) {
+        addCustomer(number, number);
+    }
+}
+
+// ======================================================
+// 🔥 LOAD ASSIGNED CUSTOMERS
+// ======================================================
+fetch(`http://localhost:3000/agent/customers?agentId=${agentId}`)
+    .then(res => res.json())
+    .then(customers => {
+
+        if (!customers || customers.length === 0) {
+            customerName.textContent = "No customers assigned yet";
+            return;
+        }
+
+        customers.forEach(c => addCustomer(c.number, c.number));
+
+        const first = customers[0];
+        activeCustomer = first.number;
+        customerName.textContent = first.number;
+
+        socket.emit("load_messages", first.number);
+    });
+
+function addCustomer(name, number) {
+    const li = document.createElement("li");
+    li.textContent = name;
+    li.onclick = () => selectCustomer(name, number);
+    customerList.appendChild(li);
+}
+
+function selectCustomer(name, number) {
+    activeCustomer = number;
+    customerName.textContent = name;
+
+    chatBox.innerHTML = "";
+    socket.emit("load_messages", number);
+}
+
+// ======================================================
+// 🚀 SEND TEXT MESSAGE
+// ======================================================
+sendBtn.onclick = async () => {
+    if (!activeCustomer) return;
+
+    const msg = messageInput.value.trim();
+    if (!msg) return;
+
+    fetch("http://localhost:3000/send", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+            to: activeCustomer,
+            message: msg
+        })
+    }).catch(err => console.error("Send Error:", err));
+
+    socket.emit("agent_message", { 
+        to: activeCustomer, 
+        message: msg, 
+        agentId 
+    });
+
+    showMessage("You", msg, "agent");
+
+    messageInput.value = "";
+};
+
+function showMessage(sender, text, type) {
+    const div = document.createElement("div");
+    div.classList.add("message", type);
+    div.textContent = text;
+    chatBox.appendChild(div);
+    chatBox.scrollTop = chatBox.scrollHeight;
+}
+
+// ======================================================
+// 📜 LOAD CHAT HISTORY
+// ======================================================
+socket.on("chat_history", (messages) => {
+    chatBox.innerHTML = "";
+    messages.forEach(msg => {
+
+        if (msg.fileData && msg.fileType) return showFile(msg);
+        if (msg.voiceNote && msg.audioData) return showAudio(msg);
+
+        showMessage(
+            msg.sender,
+            msg.message || "",
+            msg.sender === "agent" ? "agent" : "customer"
+        );
+    });
+});
+
+// ======================================================
+// 🔥 REAL incoming messages  (FIX ADDED)
+// ======================================================
+socket.on("incoming_message", (data) => {
+
+    // ⭐ FIX #1 — auto create customer in list
+    addCustomerIfNotExists(data.from);
+
+    // ⭐ FIX #2 — if no chat opened yet, auto-select
+    if (!activeCustomer) {
+        activeCustomer = data.from;
+        customerName.textContent = data.from;
+    }
+
+    // ⭐ FIX #3 — new customer messages not shown until 2nd msg → FIXED
+    if (data.from !== activeCustomer) return;
+
+    if (data.fileData && data.fileType)
+        return showFile(data);
+
+    if (data.voiceNote && data.audioData)
+        return showAudio(data);
+
+    showMessage("Customer", data.message || "", "customer");
+});
+
+// ======================================================
+// 📎 FILE UPLOAD
+// ======================================================
+attachBtn.onclick = () => fileInput.click();
+
+fileInput.onchange = async () => {
+    const file = fileInput.files[0];
+    if (!file || !activeCustomer) return;
+
+    const reader = new FileReader();
+    reader.onload = async () => {
+
+        await fetch("http://localhost:3000/send", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                to: activeCustomer,
+                fileData: reader.result,
+                fileName: file.name,
+                fileType: file.type,
+                isImage: file.type.startsWith("image"),
+                isDocument: !file.type.startsWith("image")
+            })
+        });
+
+        socket.emit("agent_message", {
+            to: activeCustomer,
+            fileName: file.name,
+            fileData: reader.result,
+            fileType: file.type,
+            agentId
+        });
+
+        showFile({
+            sender: "agent",
+            fileName: file.name,
+            fileData: reader.result,
+            fileType: file.type
+        });
+    };
+
+    reader.readAsDataURL(file);
+};
+
+// ======================================================
+// 🖼 SHOW FILE
+// ======================================================
+function showFile(data) {
+    if (!data.fileData || !data.fileType) return;
+
+    const div = document.createElement("div");
+    div.classList.add("message", data.sender === "agent" ? "agent" : "customer");
+
+    if (data.fileType.startsWith("image")) {
+        const img = document.createElement("img");
+        img.src = data.fileData;
+        img.style.maxWidth = "200px";
+        img.style.borderRadius = "6px";
+        div.appendChild(img);
+    } else {
+        const a = document.createElement("a");
+        a.href = data.fileData;
+        a.download = data.fileName || "file";
+        a.textContent = "📎 " + (data.fileName || "Download File");
+        div.appendChild(a);
+    }
+
+    chatBox.appendChild(div);
+    chatBox.scrollTop = chatBox.scrollHeight;
+}
+
+// ======================================================
+// 🎤 VOICE NOTE
+// ======================================================
+let recorder;
+let chunks = [];
+
+recordBtn.onclick = async () => {
+    if (!activeCustomer) return;
+
+    if (!recorder) {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        recorder = new MediaRecorder(stream, { mimeType: "audio/webm" });
+        chunks = [];
+
+        recorder.ondataavailable = (e) => chunks.push(e.data);
+
+        recorder.onstop = async () => {
+            const blob = new Blob(chunks, { type: "audio/webm" });
+            chunks = [];
+
+            const reader = new FileReader();
+            reader.onload = async () => {
+
+                await fetch("http://localhost:3000/send", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        to: activeCustomer,
+                        audioData: reader.result,
+                        voiceNote: true
+                    })
+                });
+
+                socket.emit("agent_message", {
+                    to: activeCustomer,
+                    voiceNote: true,
+                    audioData: reader.result,
+                    agentId
+                });
+
+                showAudio({ sender: "agent", audioData: reader.result });
+            };
+
+            reader.readAsDataURL(blob);
+        };
+
+        recorder.start();
+        recordBtn.innerText = "⏹ Stop";
+    } else {
+        recorder.stop();
+        recorder = null;
+        recordBtn.innerText = "🎤";
+    }
+};
+
+// ======================================================
+// 🔊 SHOW AUDIO
+// ======================================================
+function showAudio(data) {
+    if (!data.audioData) return;
+
+    const div = document.createElement("div");
+    div.classList.add("message", data.sender === "agent" ? "agent" : "customer");
+
+    const audio = document.createElement("audio");
+    audio.controls = true;
+    audio.src = data.audioData;
+
+    div.appendChild(audio);
+    chatBox.appendChild(div);
+    chatBox.scrollTop = chatBox.scrollHeight;
+}

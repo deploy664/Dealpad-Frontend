@@ -1,0 +1,180 @@
+/* RESET */
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+    font-family: Arial, sans-serif;
+}
+
+body {
+    background: #d7dae0;
+}
+
+/* MAIN LAYOUT */
+.container {
+    display: flex;
+    height: 100vh;
+}
+
+/* ------------------------------
+   SIDEBAR (Customer List)
+------------------------------ */
+.sidebar {
+    width: 25%;
+    background: #5b2ff5;
+    color: white;
+    padding: 20px;
+    overflow-y: auto;
+    box-shadow: 2px 0 10px rgba(0,0,0,0.2);
+}
+
+.sidebar h2 {
+    margin-bottom: 15px;
+}
+
+.sidebar ul li {
+    list-style: none;
+    padding: 12px;
+    background: white;
+    margin-bottom: 10px;
+    cursor: pointer;
+    border-radius: 6px;
+    color: #333;
+    transition: 0.2s;
+    font-weight: bold;
+}
+
+.sidebar ul li:hover {
+    background: #dfdfdf;
+}
+
+/* ------------------------------
+   CHAT SECTION
+------------------------------ */
+.chat-section {
+    flex-grow: 1;
+    display: flex;
+    flex-direction: column;
+    background: #efeae2;
+}
+
+.chat-header {
+    padding: 15px;
+    background: #f0f2f5;
+    border-bottom: 1px solid #ccc;
+    font-size: 18px;
+    font-weight: bold;
+}
+
+/* Chat Area */
+.chat-box {
+    flex-grow: 1;
+    padding: 20px;
+    overflow-y: auto;
+
+    
+    background-size: cover;
+    background-repeat: no-repeat;
+    background-position: center;
+}
+
+/* ------------------------------
+   MESSAGE BUBBLES
+------------------------------ */
+.agent-msg {
+    max-width: 55%;
+    background: #d9fdd3;
+    padding: 10px 14px;
+    margin-bottom: 12px;
+    border-radius: 10px 10px 0 10px;
+    float: right;
+    clear: both;
+    box-shadow: 0 2px 3px rgba(0,0,0,0.15);
+    position: relative;
+}
+
+.customer-msg {
+    max-width: 55%;
+    background: white;
+    padding: 10px 14px;
+    margin-bottom: 12px;
+    border-radius: 10px 10px 10px 0;
+    float: left;
+    clear: both;
+    box-shadow: 0 2px 3px rgba(0,0,0,0.1);
+    position: relative;
+}
+
+/* Image */
+.message-image {
+    max-width: 250px;
+    border-radius: 6px;
+}
+
+/* File link */
+.file-link {
+    color: #1a73e8;
+    font-weight: bold;
+}
+
+/* ------------------------------
+   VOICE PLAYER
+------------------------------ */
+audio {
+    width: 180px;
+    height: 32px;
+    margin-top: 6px;
+    display: block;
+}
+
+/* ------------------------------
+   WHATSAPP STYLE META (TIME + TICKS)
+------------------------------ */
+.msg-meta {
+    font-size: 11px;
+    color: gray;
+    display: flex;
+    justify-content: flex-end;
+    margin-top: 4px;
+    gap: 4px;
+}
+
+.meta-ticks {
+    font-size: 12px;
+    color: #4fc3f7;   /* WhatsApp blue ticks */
+}
+
+/* ------------------------------
+   CHAT INPUT BAR
+------------------------------ */
+.chat-input {
+    display: flex;
+    padding: 15px;
+    background: #f0f2f5;
+    border-top: 1px solid #ccc;
+}
+
+.chat-input input {
+    flex-grow: 1;
+    padding: 12px;
+    border: none;
+    border-radius: 30px;
+    outline: none;
+    background: white;
+    padding-left: 15px;
+}
+
+.chat-input button {
+    margin-left: 10px;
+    padding: 12px 18px;
+    background: #008069;
+    color: white;
+    border: none;
+    border-radius: 50%;
+    cursor: pointer;
+    font-size: 16px;
+}
+
+.chat-input button:hover {
+    background: #006f58;
+}

@@ -1,0 +1,375 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Support Dashboard</title>
+<link rel="stylesheet" href="style.css" />
+
+<style>
+  .container { display:flex; height:100vh; font-family: Arial, sans-serif; }
+  .sidebar { width:260px; border-right:1px solid #ddd; padding:12px; box-sizing:border-box; overflow:auto; background:#5b2fe6; }
+  .sidebar h2 { margin:0 0 12px 0; font-size:18px; color:#fff; }
+  .sidebar ul { list-style:none; padding:0; margin:0; }
+  .sidebar li { padding:12px; margin-bottom:12px; background:#fff; border-radius:8px; cursor:pointer; display:flex; justify-content:space-between; align-items:center; font-weight:700; }
+  .sidebar li:hover { background:#f0f0f0; }
+
+  .chat-section { flex:1; display:flex; flex-direction:column; }
+  .chat-header { padding:12px; border-bottom:1px solid #eee; background:#f6f4f9; }
+
+  .chat-box { flex:1; padding:18px; overflow:auto; background:#fafafa; }
+
+  .agent-msg {
+    align-self:flex-end;
+    background:#cce5ff;
+    padding:8px 10px;
+    border-radius:8px;
+    margin:6px 0;
+    max-width:60%;
+  }
+
+  .customer-msg {
+    align-self:flex-start;
+    background:#fff;
+    padding:8px 10px;
+    border-radius:8px;
+    margin:6px 0;
+    max-width:60%;
+    border:1px solid #eee;
+  }
+
+  .badge { background:#e74c3c; color:#fff; border-radius:10px; padding:2px 6px; font-size:12px; margin-left:6px; }
+  img.message-image { max-width:200px; border-radius:8px; display:block; margin-top:6px; }
+  .file-link { display:block; margin-top:6px; color:#1565c0; text-decoration:none; }
+  audio { margin-top:6px; display:block; }
+
+  .chat-input { display:flex; gap:8px; padding:12px; border-top:1px solid #eee; align-items:center; background:#fff; }
+  .chat-input button {
+    padding:10px; border-radius:50%; border:none; background:#0d8b6f;
+    color:#fff; cursor:pointer; width:52px; height:52px;
+  }
+  .chat-input input[type="text"] {
+    flex:1; padding:12px; border-radius:10px; border:1px solid #ddd;
+  }
+  .msg-meta { font-size:11px; color:#666; margin-top:6px; display:flex; justify-content:flex-end; gap:6px; align-items:center; }
+  .meta-ticks { color:#0084ff; font-size:12px; }
+</style>
+</head>
+
+<body>
+
+<audio id="notifSound" src="notif.mp3" preload="auto"></audio>
+
+<div class="container">
+
+<div class="sidebar">
+  <h2>Customers</h2>
+  <ul id="customerList">
+    <li>Loading customers...</li>
+  </ul>
+</div>
+
+<div class="chat-section">
+  <div class="chat-header"><h3 id="customerName">Select a customer</h3></div>
+
+  <div class="chat-box" id="chatBox"></div>
+
+  <div class="chat-input">
+    <button id="attachBtn" type="button">📎</button>
+    <input type="file" id="fileInput" hidden />
+    <button id="recordBtn" style="background:#008069; border-radius:50%; width:60px; height:60px;">🎤</button>
+
+    <input type="text" id="messageInput" placeholder="Type your message..." />
+    <button id="sendBtn" type="button">Send</button>
+  </div>
+</div>
+
+</div>
+
+<script src="http://localhost:3000/socket.io/socket.io.js"></script>
+
+<script>
+/* STOP ALL FORMS FROM RELOADING PAGE */
+document.addEventListener("submit", e => e.preventDefault());
+
+/* ELEMENTS */
+const customerListEl=document.getElementById('customerList');
+const chatBox=document.getElementById('chatBox');
+const customerNameEl=document.getElementById('customerName');
+const sendBtn=document.getElementById('sendBtn');
+const messageInput=document.getElementById('messageInput');
+const attachBtn=document.getElementById('attachBtn');
+const fileInput=document.getElementById('fileInput');
+const recordBtn=document.getElementById('recordBtn');
+
+let currentCustomer=null;
+
+/* LOGIN CHECK */
+const agentId=localStorage.getItem("agentId");
+if(!agentId) window.location.href="login.html";
+
+/* SOCKET */
+const socket=io("http://localhost:3000");
+socket.emit("register_agent",agentId);
+
+const sentMessageIds=new Set();
+
+/* HELPERS */
+function uuid(){return Math.random().toString(36).substring(2)+Date.now().toString(36);}
+function sanitizeId(num){return "cust-"+num.replace(/\D/g,"");}
+
+function addCustomerToUI(number){
+  if(document.getElementById(sanitizeId(number))) return;
+  const li=document.createElement("li");
+  li.id=sanitizeId(number);
+  li.dataset.number=number;
+  li.innerHTML=`${number} <span class="badge-area"></span>`;
+  li.onclick=()=>selectCustomer(number);
+  customerListEl.appendChild(li);
+}
+
+function playNotification(){
+  const audio=document.getElementById("notifSound");
+  if(audio) audio.play().catch(()=>{});
+}
+
+function moveCustomerToTop(number){
+  const li=document.getElementById(sanitizeId(number));
+  if(li) customerListEl.prepend(li);
+}
+
+function markUnread(number){
+  if(number===currentCustomer) return;
+  const li=document.getElementById(sanitizeId(number));
+  if(!li) return;
+
+  let badge=li.querySelector(".badge");
+  if(!badge){
+    badge=document.createElement("span");
+    badge.className="badge";
+    badge.innerText="1";
+    li.querySelector(".badge-area").appendChild(badge);
+  }else{
+    badge.innerText=String(parseInt(badge.innerText)+1);
+  }
+}
+
+function clearUnread(number){
+  const li=document.getElementById(sanitizeId(number));
+  if(!li) return;
+  const badge=li.querySelector(".badge");
+  if(badge) badge.remove();
+}
+
+function selectCustomer(number){
+  currentCustomer=number;
+  customerNameEl.innerText="Chat with "+number;
+  chatBox.innerHTML="";
+  clearUnread(number);
+  socket.emit("load_messages",number);
+}
+
+/* LOAD CUSTOMERS */
+async function loadCustomers(){
+  customerListEl.innerHTML="<li>Loading...</li>";
+  try{
+    const res=await fetch(`http://localhost:3000/agent/customers?agentId=${agentId}`);
+    const customers=await res.json();
+    customerListEl.innerHTML="";
+    customers.forEach(c=>addCustomerToUI(c.number));
+  }catch{
+    customerListEl.innerHTML="<li>Error loading customers</li>";
+  }
+}
+
+/* CHAT HISTORY */
+socket.on("chat_history",msgs=>{
+  chatBox.innerHTML="";
+  msgs.forEach(m=>renderMessage(m,m.sender));
+});
+
+/* NEW CUSTOMER */
+socket.on("new_customer",cust=>addCustomerToUI(cust.number));
+
+/* INCOMING FIX */
+socket.on("incoming_message",data=>{
+  if(data.sender==="agent") return;
+
+  addCustomerToUI(data.from);
+  moveCustomerToTop(data.from);
+
+  if(data.from===currentCustomer){
+    renderMessage(data,"customer");
+  } else {
+    playNotification();
+    markUnread(data.from);
+  }
+});
+
+/* RENDER MESSAGE */
+function renderMessage(msg,sender){
+  const div=document.createElement("div");
+  div.className=sender==="agent"?"agent-msg":"customer-msg";
+
+  if(msg.fileType && msg.fileType.startsWith("image/")){
+    const img=document.createElement("img");
+    img.src=msg.fileData; img.className="message-image"; div.appendChild(img);
+  }
+  else if(msg.voiceNote && msg.audioData){
+    const audio=document.createElement("audio");
+    audio.controls=true; audio.src=msg.audioData; div.appendChild(audio);
+  }
+  else if(msg.fileData && msg.fileName){
+    const link=document.createElement("a");
+    link.href=msg.fileData; link.target="_blank"; link.download=msg.fileName;
+    link.className="file-link"; link.innerText="📎 "+msg.fileName;
+    div.appendChild(link);
+  }
+  else{
+    div.innerText=msg.message||msg.text||"";
+  }
+
+  const meta=document.createElement("div");
+  meta.className="msg-meta";
+  let time=new Date().toLocaleTimeString([], {hour:"2-digit", minute:"2-digit"});
+  let ticks=sender==="agent"?"✔✔":"";
+  meta.innerHTML=`<span>${time}</span> <span class="meta-ticks">${ticks}</span>`;
+  div.appendChild(meta);
+
+  chatBox.appendChild(div);
+  chatBox.scrollTop=chatBox.scrollHeight;
+}
+
+/* SEND TEXT */
+sendBtn.onclick=(e)=>{
+  e.preventDefault(); // STOP RELOAD
+
+  const msg=messageInput.value.trim();
+  if(!msg || !currentCustomer) return;
+
+  const tempId=uuid();
+  sentMessageIds.add(tempId);
+
+  fetch("http://localhost:3000/send",{
+    method:"POST",
+    headers:{"Content-Type":"application/json"},
+    body:JSON.stringify({ to:currentCustomer, message:msg, tempId })
+  });
+
+  socket.emit("agent_message",{to:currentCustomer,message:msg,tempId});
+  renderMessage({message:msg},"agent");
+  messageInput.value="";
+};
+
+/* FILE SEND */
+attachBtn.onclick=()=>fileInput.click();
+
+fileInput.onchange=(e)=>{
+  e.preventDefault(); // STOP RELOAD
+
+  const file=fileInput.files[0];
+  if(!file || !currentCustomer) return;
+
+  const reader=new FileReader();
+  reader.onload=ev=>{
+    const base64=ev.target.result;
+    const tempId=uuid();
+    sentMessageIds.add(tempId);
+
+    fetch("http://localhost:3000/send",{
+      method:"POST",
+      headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({
+        to:currentCustomer,fileData:base64,fileName:file.name,
+        fileType:file.type,tempId
+      })
+    });
+
+    socket.emit("agent_message",{
+      to:currentCustomer,fileName:file.name,fileType:file.type,
+      fileData:base64,tempId
+    });
+
+    renderMessage({fileName:file.name,fileType:file.type,fileData:base64},"agent");
+    fileInput.value="";
+  };
+  reader.readAsDataURL(file);
+};
+
+/* VOICE SEND */
+let recorder=null; 
+let recordingMime=''; 
+let chunks=[];
+
+recordBtn.onclick=async(e)=>{
+  e.preventDefault(); // STOP RELOAD
+
+  if(!currentCustomer) return alert("Select a customer first.");
+
+  if(!recorder){
+    try{
+      const stream=await navigator.mediaDevices.getUserMedia({audio:true});
+
+      if(MediaRecorder.isTypeSupported('audio/ogg;codecs=opus')) recordingMime='audio/ogg;codecs=opus';
+      else if(MediaRecorder.isTypeSupported('audio/webm;codecs=opus')) recordingMime='audio/webm;codecs=opus';
+      else recordingMime='';
+
+      recorder=new MediaRecorder(stream,{ mimeType:recordingMime });
+      recorder.ondataavailable=e=>chunks.push(e.data);
+
+      recorder.onstop=()=>{
+        const blob=new Blob(chunks,{type:recordingMime||'audio/ogg'});
+        chunks=[];
+
+        const reader=new FileReader();
+        reader.onload=ev=>{
+          const base64=ev.target.result;
+          const tempId=uuid();
+          sentMessageIds.add(tempId);
+
+          fetch("http://localhost:3000/send",{
+            method:"POST",
+            headers:{"Content-Type":"application/json"},
+            body:JSON.stringify({
+              to:currentCustomer,audioData:base64,voiceNote:true,
+              fileType:blob.type,tempId
+            })
+          });
+
+          socket.emit("agent_message",{
+            to:currentCustomer,voiceNote:true,audioData:base64,
+            fileType:blob.type,tempId
+          });
+
+          renderMessage({voiceNote:true,audioData:base64,fileType:blob.type},"agent");
+        };
+        reader.readAsDataURL(blob);
+      };
+
+      recorder.start();
+      recordBtn.innerText="⏹ Stop";
+
+    }catch{
+      alert("Microphone error.");
+    }
+
+  }else{
+    recorder.stop();
+    recorder=null;
+    recordBtn.innerText="🎤";
+  }
+};
+
+/* ENTER KEY SEND */
+messageInput.onkeydown=e=>{
+  if(e.key==="Enter"){
+    e.preventDefault();
+    sendBtn.click();
+  }
+};
+
+loadCustomers();
+</script>
+
+</body>
+</html>
