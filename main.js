@@ -22,13 +22,11 @@ const recordBtn = document.getElementById("recordBtn");
 let activeCustomer = null;
 
 // ======================================================
-// ⭐ AUTO-ADD NEW CUSTOMER IF NOT EXISTS (FIX)
+// ⭐ AUTO-ADD NEW CUSTOMER IF NOT EXISTS
 // ======================================================
 function addCustomerIfNotExists(number) {
     let exists = Array.from(customerList.children).some(li => li.textContent === number);
-    if (!exists) {
-        addCustomer(number, number);
-    }
+    if (!exists) addCustomer(number, number);
 }
 
 // ======================================================
@@ -37,7 +35,6 @@ function addCustomerIfNotExists(number) {
 fetch(`https://dealpad-backend-1.onrender.com/agent/customers?agentId=${agentId}`)
     .then(res => res.json())
     .then(customers => {
-
         if (!customers || customers.length === 0) {
             customerName.textContent = "No customers assigned yet";
             return;
@@ -79,20 +76,12 @@ sendBtn.onclick = async () => {
     fetch("https://dealpad-backend-1.onrender.com/send", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-            to: activeCustomer,
-            message: msg
-        })
-    }).catch(err => console.error("Send Error:", err));
-
-    socket.emit("agent_message", { 
-        to: activeCustomer, 
-        message: msg, 
-        agentId 
+        body: JSON.stringify({ to: activeCustomer, message: msg })
     });
 
-    showMessage("You", msg, "agent");
+    socket.emit("agent_message", { to: activeCustomer, message: msg, agentId });
 
+    showMessage("You", msg, "agent");
     messageInput.value = "";
 };
 
@@ -110,7 +99,6 @@ function showMessage(sender, text, type) {
 socket.on("chat_history", (messages) => {
     chatBox.innerHTML = "";
     messages.forEach(msg => {
-
         if (msg.fileData && msg.fileType) return showFile(msg);
         if (msg.voiceNote && msg.audioData) return showAudio(msg);
 
@@ -123,27 +111,20 @@ socket.on("chat_history", (messages) => {
 });
 
 // ======================================================
-// 🔥 REAL incoming messages  (FIX ADDED)
+// 🔥 REAL incoming messages
 // ======================================================
 socket.on("incoming_message", (data) => {
-
-    // ⭐ FIX #1 — auto create customer in list
     addCustomerIfNotExists(data.from);
 
-    // ⭐ FIX #2 — if no chat opened yet, auto-select
     if (!activeCustomer) {
         activeCustomer = data.from;
         customerName.textContent = data.from;
     }
 
-    // ⭐ FIX #3 — new customer messages not shown until 2nd msg → FIXED
     if (data.from !== activeCustomer) return;
 
-    if (data.fileData && data.fileType)
-        return showFile(data);
-
-    if (data.voiceNote && data.audioData)
-        return showAudio(data);
+    if (data.fileData && data.fileType) return showFile(data);
+    if (data.voiceNote && data.audioData) return showAudio(data);
 
     showMessage("Customer", data.message || "", "customer");
 });
@@ -159,7 +140,6 @@ fileInput.onchange = async () => {
 
     const reader = new FileReader();
     reader.onload = async () => {
-
         await fetch("https://dealpad-backend-1.onrender.com/send", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -192,9 +172,6 @@ fileInput.onchange = async () => {
     reader.readAsDataURL(file);
 };
 
-// ======================================================
-// 🖼 SHOW FILE
-// ======================================================
 function showFile(data) {
     if (!data.fileData || !data.fileType) return;
 
@@ -220,7 +197,7 @@ function showFile(data) {
 }
 
 // ======================================================
-// 🎤 VOICE NOTE
+// 🎤 VOICE NOTE (FIXED – OGG OPUS)
 // ======================================================
 let recorder;
 let chunks = [];
@@ -230,39 +207,41 @@ recordBtn.onclick = async () => {
 
     if (!recorder) {
         const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-        recorder = new MediaRecorder(stream, { mimeType: "audio/webm" });
+
+        recorder = new MediaRecorder(stream, {
+            mimeType: "audio/ogg; codecs=opus"
+        });
+
         chunks = [];
 
-        recorder.ondataavailable = (e) => chunks.push(e.data);
+        recorder.ondataavailable = (e) => {
+            if (e.data.size > 0) chunks.push(e.data);
+        };
 
         recorder.onstop = async () => {
-            const blob = new Blob(chunks, { type: "audio/webm" });
+            const blob = new Blob(chunks, { type: "audio/ogg" });
             chunks = [];
 
-            const reader = new FileReader();
-            reader.onload = async () => {
+            const formData = new FormData();
+            formData.append("audio", blob, "voice.ogg");
+            formData.append("to", activeCustomer);
+            formData.append("voiceNote", "true");
 
-                await fetch("https://dealpad-backend-1.onrender.com/send", {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({
-                        to: activeCustomer,
-                        audioData: reader.result,
-                        voiceNote: true
-                    })
-                });
+            await fetch("https://dealpad-backend-1.onrender.com/send-voice", {
+                method: "POST",
+                body: formData
+            });
 
-                socket.emit("agent_message", {
-                    to: activeCustomer,
-                    voiceNote: true,
-                    audioData: reader.result,
-                    agentId
-                });
+            const localURL = URL.createObjectURL(blob);
 
-                showAudio({ sender: "agent", audioData: reader.result });
-            };
+            socket.emit("agent_message", {
+                to: activeCustomer,
+                voiceNote: true,
+                audioData: localURL,
+                agentId
+            });
 
-            reader.readAsDataURL(blob);
+            showAudio({ sender: "agent", audioData: localURL });
         };
 
         recorder.start();
