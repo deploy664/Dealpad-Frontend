@@ -86,13 +86,11 @@
 
 </div>
 
-<script src="http://localhost:3000/socket.io/socket.io.js"></script>
+<script src="https://dealpad-backend-1.onrender.com/socket.io/socket.io.js"></script>
 
 <script>
-/* STOP ALL FORMS FROM RELOADING PAGE */
 document.addEventListener("submit", e => e.preventDefault());
 
-/* ELEMENTS */
 const customerListEl=document.getElementById('customerList');
 const chatBox=document.getElementById('chatBox');
 const customerNameEl=document.getElementById('customerName');
@@ -104,17 +102,12 @@ const recordBtn=document.getElementById('recordBtn');
 
 let currentCustomer=null;
 
-/* LOGIN CHECK */
 const agentId=localStorage.getItem("agentId");
 if(!agentId) window.location.href="login.html";
 
-/* SOCKET */
-const socket=io("http://localhost:3000");
+const socket=io("https://dealpad-backend-1.onrender.com");
 socket.emit("register_agent",agentId);
 
-const sentMessageIds=new Set();
-
-/* HELPERS */
 function uuid(){return Math.random().toString(36).substring(2)+Date.now().toString(36);}
 function sanitizeId(num){return "cust-"+num.replace(/\D/g,"");}
 
@@ -126,11 +119,6 @@ function addCustomerToUI(number){
   li.innerHTML=`${number} <span class="badge-area"></span>`;
   li.onclick=()=>selectCustomer(number);
   customerListEl.appendChild(li);
-}
-
-function playNotification(){
-  const audio=document.getElementById("notifSound");
-  if(audio) audio.play().catch(()=>{});
 }
 
 function moveCustomerToTop(number){
@@ -173,7 +161,7 @@ function selectCustomer(number){
 async function loadCustomers(){
   customerListEl.innerHTML="<li>Loading...</li>";
   try{
-    const res=await fetch(`http://localhost:3000/agent/customers?agentId=${agentId}`);
+    const res=await fetch(`https://dealpad-backend-1.onrender.com/agent/customers?agentId=${agentId}`);
     const customers=await res.json();
     customerListEl.innerHTML="";
     customers.forEach(c=>addCustomerToUI(c.number));
@@ -182,16 +170,22 @@ async function loadCustomers(){
   }
 }
 
-/* CHAT HISTORY */
-socket.on("chat_history",msgs=>{
-  chatBox.innerHTML="";
-  msgs.forEach(m=>renderMessage(m,m.sender));
+/* FIXED CHAT HISTORY WITH SORT */
+socket.on("chat_history", msgs => {
+  chatBox.innerHTML = "";
+
+  msgs.sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
+
+  msgs.forEach(m => renderMessage(m, m.sender));
+
+  chatBox.scrollTop = chatBox.scrollHeight;
 });
+
 
 /* NEW CUSTOMER */
 socket.on("new_customer",cust=>addCustomerToUI(cust.number));
 
-/* INCOMING FIX */
+/* INCOMING */
 socket.on("incoming_message",data=>{
   if(data.sender==="agent") return;
 
@@ -201,32 +195,40 @@ socket.on("incoming_message",data=>{
   if(data.from===currentCustomer){
     renderMessage(data,"customer");
   } else {
-    playNotification();
+    document.getElementById("notifSound").play().catch(()=>{});
     markUnread(data.from);
   }
 });
 
-/* RENDER MESSAGE */
+
+/* RENDER MESSAGE — FIXED NULL ERROR */
 function renderMessage(msg,sender){
   const div=document.createElement("div");
   div.className=sender==="agent"?"agent-msg":"customer-msg";
 
-  if(msg.fileType && msg.fileType.startsWith("image/")){
+  if(msg.fileType && msg.fileData && msg.fileType.startsWith("image/")){
     const img=document.createElement("img");
-    img.src=msg.fileData; img.className="message-image"; div.appendChild(img);
+    img.src=msg.fileData;
+    img.className="message-image";
+    div.appendChild(img);
   }
   else if(msg.voiceNote && msg.audioData){
     const audio=document.createElement("audio");
-    audio.controls=true; audio.src=msg.audioData; div.appendChild(audio);
+    audio.controls=true;
+    audio.src=msg.audioData;
+    div.appendChild(audio);
   }
   else if(msg.fileData && msg.fileName){
     const link=document.createElement("a");
-    link.href=msg.fileData; link.target="_blank"; link.download=msg.fileName;
-    link.className="file-link"; link.innerText="📎 "+msg.fileName;
+    link.href=msg.fileData;
+    link.target="_blank";
+    link.download=msg.fileName;
+    link.className="file-link";
+    link.innerText="📎 "+msg.fileName;
     div.appendChild(link);
   }
-  else{
-    div.innerText=msg.message||msg.text||"";
+  else if(msg.message || msg.text){
+    div.innerText=msg.message || msg.text;
   }
 
   const meta=document.createElement("div");
@@ -241,16 +243,15 @@ function renderMessage(msg,sender){
 }
 
 /* SEND TEXT */
-sendBtn.onclick=(e)=>{
-  e.preventDefault(); // STOP RELOAD
+sendBtn.onclick=e=>{
+  e.preventDefault();
 
   const msg=messageInput.value.trim();
   if(!msg || !currentCustomer) return;
 
   const tempId=uuid();
-  sentMessageIds.add(tempId);
 
-  fetch("http://localhost:3000/send",{
+  fetch("https://dealpad-backend-1.onrender.com/send",{
     method:"POST",
     headers:{"Content-Type":"application/json"},
     body:JSON.stringify({ to:currentCustomer, message:msg, tempId })
@@ -264,9 +265,8 @@ sendBtn.onclick=(e)=>{
 /* FILE SEND */
 attachBtn.onclick=()=>fileInput.click();
 
-fileInput.onchange=(e)=>{
-  e.preventDefault(); // STOP RELOAD
-
+fileInput.onchange=e=>{
+  e.preventDefault();
   const file=fileInput.files[0];
   if(!file || !currentCustomer) return;
 
@@ -274,9 +274,8 @@ fileInput.onchange=(e)=>{
   reader.onload=ev=>{
     const base64=ev.target.result;
     const tempId=uuid();
-    sentMessageIds.add(tempId);
 
-    fetch("http://localhost:3000/send",{
+    fetch("https://dealpad-backend-1.onrender.com/send",{
       method:"POST",
       headers:{"Content-Type":"application/json"},
       body:JSON.stringify({
@@ -301,9 +300,8 @@ let recorder=null;
 let recordingMime=''; 
 let chunks=[];
 
-recordBtn.onclick=async(e)=>{
-  e.preventDefault(); // STOP RELOAD
-
+recordBtn.onclick=async e=>{
+  e.preventDefault();
   if(!currentCustomer) return alert("Select a customer first.");
 
   if(!recorder){
@@ -325,9 +323,8 @@ recordBtn.onclick=async(e)=>{
         reader.onload=ev=>{
           const base64=ev.target.result;
           const tempId=uuid();
-          sentMessageIds.add(tempId);
 
-          fetch("http://localhost:3000/send",{
+          fetch("https://dealpad-backend-1.onrender.com/send",{
             method:"POST",
             headers:{"Content-Type":"application/json"},
             body:JSON.stringify({
@@ -360,7 +357,7 @@ recordBtn.onclick=async(e)=>{
   }
 };
 
-/* ENTER KEY SEND */
+/* ENTER SEND */
 messageInput.onkeydown=e=>{
   if(e.key==="Enter"){
     e.preventDefault();

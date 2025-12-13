@@ -1,4 +1,4 @@
-const API = "http://localhost:3000";
+const API = "https://dealpad-backend-1.onrender.com";
 
 // --------------------
 // GET AGENT ID

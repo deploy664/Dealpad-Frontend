@@ -34,7 +34,7 @@ function addCustomerIfNotExists(number) {
 // ======================================================
 // 🔥 LOAD ASSIGNED CUSTOMERS
 // ======================================================
-fetch(`http://localhost:3000/agent/customers?agentId=${agentId}`)
+fetch(`https://dealpad-backend-1.onrender.com/agent/customers?agentId=${agentId}`)
     .then(res => res.json())
     .then(customers => {
 
@@ -76,7 +76,7 @@ sendBtn.onclick = async () => {
     const msg = messageInput.value.trim();
     if (!msg) return;
 
-    fetch("http://localhost:3000/send", {
+    fetch("https://dealpad-backend-1.onrender.com/send", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -160,7 +160,7 @@ fileInput.onchange = async () => {
     const reader = new FileReader();
     reader.onload = async () => {
 
-        await fetch("http://localhost:3000/send", {
+        await fetch("https://dealpad-backend-1.onrender.com/send", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
@@ -242,7 +242,7 @@ recordBtn.onclick = async () => {
             const reader = new FileReader();
             reader.onload = async () => {
 
-                await fetch("http://localhost:3000/send", {
+                await fetch("https://dealpad-backend-1.onrender.com/send", {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({
