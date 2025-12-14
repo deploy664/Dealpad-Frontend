@@ -53,6 +53,9 @@
   }
   .msg-meta { font-size:11px; color:#666; margin-top:6px; display:flex; justify-content:flex-end; gap:6px; align-items:center; }
   .meta-ticks { color:#0084ff; font-size:12px; }
+
+  .customer-name { margin-left: 6px; font-weight: normal; color: #555; }
+  .save-btn { margin-left: 8px; cursor: pointer; border: none; background: transparent; font-size: 16px; line-height: 1; padding: 0; }
 </style>
 </head>
 
@@ -111,21 +114,108 @@ socket.emit("register_agent",agentId);
 function uuid(){return Math.random().toString(36).substring(2)+Date.now().toString(36);}
 function sanitizeId(num){return "cust-"+num.replace(/\D/g,"");}
 
+// ---- Save name helpers ----
+function saveCustomerName(number, name){
+  localStorage.setItem("custName-"+number, name);
+}
+function getCustomerName(number){
+  return localStorage.getItem("custName-"+number);
+}
+function updateCustomerDisplayName(number){
+  const li = document.getElementById(sanitizeId(number));
+  if(!li) return;
+  const nameSpan = li.querySelector(".customer-name");
+  const name = getCustomerName(number);
+  if(nameSpan){
+    nameSpan.textContent = name ? `(${name})` : '';
+  }
+}
+
+// ---- Active timestamp helpers ----
+function updateCustomerActivity(number){
+  localStorage.setItem("custActive-"+number, Date.now());
+  moveCustomerToTop(number);
+}
+function getCustomerActivity(number){
+  return parseInt(localStorage.getItem("custActive-"+number)) || 0;
+}
+
+// ---- Add customer to UI ----
 function addCustomerToUI(number){
   if(document.getElementById(sanitizeId(number))) return;
   const li=document.createElement("li");
   li.id=sanitizeId(number);
   li.dataset.number=number;
-  li.innerHTML=`${number} <span class="badge-area"></span>`;
+
+  // Number span
+  const numSpan = document.createElement('span');
+  numSpan.textContent = number;
+
+  // Name span
+  const nameSpan = document.createElement('span');
+  nameSpan.className = 'customer-name';
+  const savedName = getCustomerName(number);
+  if(savedName) nameSpan.textContent = `(${savedName})`;
+
+  // Save button
+  const saveBtn = document.createElement('button');
+  saveBtn.className = 'save-btn';
+  saveBtn.innerHTML = '💾';
+  saveBtn.title = "Save/Edit Name";
+  saveBtn.onclick = (e)=>{
+    e.stopPropagation();
+    const newName = prompt(`Enter name for customer ${number}:`, getCustomerName(number) || "");
+    if(newName && newName.trim().length>0){
+      saveCustomerName(number, newName.trim());
+      updateCustomerDisplayName(number);
+      if(currentCustomer===number){
+        customerNameEl.innerText = `Chat with ${number} (${newName.trim()})`;
+      }
+    }
+  };
+
+  // Badge area
+  const badgeArea = document.createElement('span');
+  badgeArea.className='badge-area';
+  badgeArea.style.marginLeft='auto';
+
   li.onclick=()=>selectCustomer(number);
-  customerListEl.appendChild(li);
+  li.appendChild(numSpan);
+  li.appendChild(nameSpan);
+  li.appendChild(saveBtn);
+  li.appendChild(badgeArea);
+
+  // Insert in correct position based on activity
+  insertCustomerByActivity(li);
+
 }
 
+// Insert customer in list sorted by last activity
+function insertCustomerByActivity(li){
+  const number = li.dataset.number;
+  const activity = getCustomerActivity(number);
+  const children = Array.from(customerListEl.children);
+  let inserted = false;
+  for(let i=0;i<children.length;i++){
+    const childNum = children[i].dataset.number;
+    if(getCustomerActivity(childNum) < activity){
+      customerListEl.insertBefore(li, children[i]);
+      inserted = true;
+      break;
+    }
+  }
+  if(!inserted) customerListEl.appendChild(li);
+}
+
+// Move to top
 function moveCustomerToTop(number){
   const li=document.getElementById(sanitizeId(number));
-  if(li) customerListEl.prepend(li);
+  if(!li) return;
+  li.remove();
+  insertCustomerByActivity(li);
 }
 
+// Mark unread
 function markUnread(number){
   if(number===currentCustomer) return;
   const li=document.getElementById(sanitizeId(number));
@@ -142,6 +232,7 @@ function markUnread(number){
   }
 }
 
+// Clear unread
 function clearUnread(number){
   const li=document.getElementById(sanitizeId(number));
   if(!li) return;
@@ -149,49 +240,49 @@ function clearUnread(number){
   if(badge) badge.remove();
 }
 
+// Select customer
 function selectCustomer(number){
   currentCustomer=number;
-  customerNameEl.innerText="Chat with "+number;
+  updateCustomerActivity(number);
+  const savedName = getCustomerName(number);
+  customerNameEl.innerText = `Chat with ${number}${savedName ? ` (${savedName})` : ''}`;
   chatBox.innerHTML="";
   clearUnread(number);
   socket.emit("load_messages",number);
 }
 
-/* LOAD CUSTOMERS */
+// Load customers
 async function loadCustomers(){
   customerListEl.innerHTML="<li>Loading...</li>";
   try{
     const res=await fetch(`https://dealpad-backend-1.onrender.com/agent/customers?agentId=${agentId}`);
     const customers=await res.json();
     customerListEl.innerHTML="";
+    // Sort by activity first
+    customers.sort((a,b)=>getCustomerActivity(b.number)-getCustomerActivity(a.number));
     customers.forEach(c=>addCustomerToUI(c.number));
   }catch{
     customerListEl.innerHTML="<li>Error loading customers</li>";
   }
 }
 
-/* FIXED CHAT HISTORY WITH SORT */
+// Socket events
 socket.on("chat_history", msgs => {
   chatBox.innerHTML = "";
-
-  msgs.sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
-
+  msgs.sort((a,b)=> new Date(a.created_at) - new Date(b.created_at));
   msgs.forEach(m => renderMessage(m, m.sender));
-
   chatBox.scrollTop = chatBox.scrollHeight;
 });
 
+socket.on("new_customer",cust=>{
+  addCustomerToUI(cust.number);
+  updateCustomerActivity(cust.number);
+});
 
-/* NEW CUSTOMER */
-socket.on("new_customer",cust=>addCustomerToUI(cust.number));
-
-/* INCOMING */
 socket.on("incoming_message",data=>{
   if(data.sender==="agent") return;
-
   addCustomerToUI(data.from);
-  moveCustomerToTop(data.from);
-
+  updateCustomerActivity(data.from);
   if(data.from===currentCustomer){
     renderMessage(data,"customer");
   } else {
@@ -200,8 +291,7 @@ socket.on("incoming_message",data=>{
   }
 });
 
-
-/* RENDER MESSAGE — FIXED NULL ERROR */
+// Render message
 function renderMessage(msg,sender){
   const div=document.createElement("div");
   div.className=sender==="agent"?"agent-msg":"customer-msg";
@@ -234,24 +324,12 @@ function renderMessage(msg,sender){
   const meta=document.createElement("div");
   meta.className="msg-meta";
   let time = "";
-
-if (msg.created_at && !isNaN(new Date(msg.created_at))) {
-  const d = new Date(msg.created_at);
-
-  const date = d.toLocaleDateString("en-GB", {
-    day: "2-digit",
-    month: "short",
-    year: "numeric"
-  });
-
-  const t = d.toLocaleTimeString([], {
-    hour: "2-digit",
-    minute: "2-digit"
-  });
-
-  time = `${date} • ${t}`;
-}
-
+  if(msg.created_at && !isNaN(new Date(msg.created_at))){
+    const d=new Date(msg.created_at);
+    const date = d.toLocaleDateString("en-GB",{day:"2-digit",month:"short",year:"numeric"});
+    const t = d.toLocaleTimeString([], {hour:"2-digit",minute:"2-digit"});
+    time = `${date} • ${t}`;
+  }
 
   let ticks=sender==="agent"?"✔✔":"";
   meta.innerHTML=`<span>${time}</span> <span class="meta-ticks">${ticks}</span>`;
@@ -261,10 +339,9 @@ if (msg.created_at && !isNaN(new Date(msg.created_at))) {
   chatBox.scrollTop=chatBox.scrollHeight;
 }
 
-/* SEND TEXT */
+// Send text
 sendBtn.onclick=e=>{
   e.preventDefault();
-
   const msg=messageInput.value.trim();
   if(!msg || !currentCustomer) return;
 
@@ -277,15 +354,14 @@ sendBtn.onclick=e=>{
   });
 
   socket.emit("agent_message",{to:currentCustomer,message:msg,tempId});
-  renderMessage({
-  message: msg,
-  created_at: new Date().toISOString()
-}, "agent");
+  renderMessage({message: msg, created_at: new Date().toISOString()},"agent");
+
+  updateCustomerActivity(currentCustomer);
 
   messageInput.value="";
 };
 
-/* FILE SEND */
+// File send
 attachBtn.onclick=()=>fileInput.click();
 
 fileInput.onchange=e=>{
@@ -313,14 +389,15 @@ fileInput.onchange=e=>{
     });
 
     renderMessage({fileName:file.name,fileType:file.type,fileData:base64},"agent");
+    updateCustomerActivity(currentCustomer);
     fileInput.value="";
   };
   reader.readAsDataURL(file);
 };
 
-/* VOICE SEND */
-let recorder=null; 
-let recordingMime=''; 
+// Voice send
+let recorder=null;
+let recordingMime='';
 let chunks=[];
 
 recordBtn.onclick=async e=>{
@@ -330,7 +407,6 @@ recordBtn.onclick=async e=>{
   if(!recorder){
     try{
       const stream=await navigator.mediaDevices.getUserMedia({audio:true});
-
       if(MediaRecorder.isTypeSupported('audio/ogg;codecs=opus')) recordingMime='audio/ogg;codecs=opus';
       else if(MediaRecorder.isTypeSupported('audio/webm;codecs=opus')) recordingMime='audio/webm;codecs=opus';
       else recordingMime='';
@@ -362,6 +438,7 @@ recordBtn.onclick=async e=>{
           });
 
           renderMessage({voiceNote:true,audioData:base64,fileType:blob.type},"agent");
+          updateCustomerActivity(currentCustomer);
         };
         reader.readAsDataURL(blob);
       };
@@ -380,7 +457,7 @@ recordBtn.onclick=async e=>{
   }
 };
 
-/* ENTER SEND */
+// Enter send
 messageInput.onkeydown=e=>{
   if(e.key==="Enter"){
     e.preventDefault();
