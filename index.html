@@ -233,7 +233,26 @@ function renderMessage(msg,sender){
 
   const meta=document.createElement("div");
   meta.className="msg-meta";
-  let time=new Date().toLocaleTimeString([], {hour:"2-digit", minute:"2-digit"});
+  let time = "";
+
+if (msg.created_at && !isNaN(new Date(msg.created_at))) {
+  const d = new Date(msg.created_at);
+
+  const date = d.toLocaleDateString("en-GB", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric"
+  });
+
+  const t = d.toLocaleTimeString([], {
+    hour: "2-digit",
+    minute: "2-digit"
+  });
+
+  time = `${date} • ${t}`;
+}
+
+
   let ticks=sender==="agent"?"✔✔":"";
   meta.innerHTML=`<span>${time}</span> <span class="meta-ticks">${ticks}</span>`;
   div.appendChild(meta);
@@ -258,7 +277,11 @@ sendBtn.onclick=e=>{
   });
 
   socket.emit("agent_message",{to:currentCustomer,message:msg,tempId});
-  renderMessage({message:msg},"agent");
+  renderMessage({
+  message: msg,
+  created_at: new Date().toISOString()
+}, "agent");
+
   messageInput.value="";
 };
 
