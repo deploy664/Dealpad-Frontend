@@ -135,7 +135,23 @@ socket.on("connect", () => {
 
 socket.on("reconnect", () => {
   socket.emit("register_agent", agentId);
+
+  // 🔁 reload active chat (IMPORTANT)
+  if(currentCustomer){
+    socket.emit("load_messages", currentCustomer);
+  }
 });
+// 👁️ TAB VISIBILITY HANDLER (IMPORTANT)
+document.addEventListener("visibilitychange", () => {
+  if(!document.hidden){
+    if(!socket.connected){
+      console.log("Tab active → reconnecting socket");
+      socket.connect();
+    }
+  }
+});
+
+
 
 
 function uuid(){return Math.random().toString(36).substring(2)+Date.now().toString(36);}
@@ -295,16 +311,28 @@ function selectCustomer(number){
   socket.emit("load_messages",number);
 }
 
-// Load customers
 async function loadCustomers(){
   customerListEl.innerHTML="<li>Loading...</li>";
   try{
-    const res=await fetch(`https://dealpad-backend-1.onrender.com/agent/customers?agentId=${agentId}`);
-    const customers=await res.json();
+    const res = await fetch(
+      `https://dealpad-backend-1.onrender.com/agent/customers?agentId=${agentId}`
+    );
+    const customers = await res.json();
     customerListEl.innerHTML="";
-    // Sort by activity first
+
     customers.sort((a,b)=>getCustomerActivity(b.number)-getCustomerActivity(a.number));
-    customers.forEach(c=>addCustomerToUI(c.number));
+
+    customers.forEach(c=>{
+      addCustomerToUI(c.number);
+
+      // 🔔 fallback unread recovery
+      if(!currentCustomer || currentCustomer !== c.number){
+        const unread = getUnread(c.number);
+        if(unread > 0){
+          markUnread(c.number);
+        }
+      }
+    });
   }catch{
     customerListEl.innerHTML="<li>Error loading customers</li>";
   }
@@ -323,17 +351,23 @@ socket.on("new_customer",cust=>{
   updateCustomerActivity(cust.number);
 });
 
-socket.on("incoming_message",data=>{
-  if(data.sender==="agent") return;
+socket.on("incoming_message", data => {
+  if(data.sender === "agent") return;
+
   addCustomerToUI(data.from);
   updateCustomerActivity(data.from);
-  if(data.from===currentCustomer){
-    renderMessage(data,"customer");
+
+  if(data.from === currentCustomer){
+    renderMessage(data, "customer");
   } else {
-    document.getElementById("notifSound").play().catch(()=>{});
+    // Tab visible hai toh notification play karo
+    if (document.visibilityState === "visible") {
+      document.getElementById("notifSound").play().catch(() => {});
+    }
     markUnread(data.from);
   }
 });
+
 
 // Render message
 function renderMessage(msg,sender){
