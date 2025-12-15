@@ -103,13 +103,40 @@ const attachBtn=document.getElementById('attachBtn');
 const fileInput=document.getElementById('fileInput');
 const recordBtn=document.getElementById('recordBtn');
 
+function getUnread(number){
+  return parseInt(localStorage.getItem("unread-"+number)) || 0;
+}
+
+function setUnread(number, count){
+  localStorage.setItem("unread-"+number, count);
+}
+
+function clearUnreadStorage(number){
+  localStorage.removeItem("unread-"+number);
+}
+
+
 let currentCustomer=null;
 
 const agentId=localStorage.getItem("agentId");
 if(!agentId) window.location.href="login.html";
 
-const socket=io("https://dealpad-backend-1.onrender.com");
-socket.emit("register_agent",agentId);
+const socket = io("https://dealpad-backend-1.onrender.com", {
+  reconnection: true,
+  reconnectionAttempts: Infinity,
+  reconnectionDelay: 1000,
+  transports: ["websocket"]
+});
+
+// 👇 YAHAN
+socket.on("connect", () => {
+  socket.emit("register_agent", agentId);
+});
+
+socket.on("reconnect", () => {
+  socket.emit("register_agent", agentId);
+});
+
 
 function uuid(){return Math.random().toString(36).substring(2)+Date.now().toString(36);}
 function sanitizeId(num){return "cust-"+num.replace(/\D/g,"");}
@@ -170,6 +197,7 @@ function addCustomerToUI(number){
       updateCustomerDisplayName(number);
       if(currentCustomer===number){
         customerNameEl.innerText = `Chat with ${number} (${newName.trim()})`;
+        
       }
     }
   };
@@ -187,6 +215,15 @@ function addCustomerToUI(number){
 
   // Insert in correct position based on activity
   insertCustomerByActivity(li);
+  // ✅ RESTORE UNREAD BADGE (reload / logout ke baad)
+const unread = getUnread(number);
+if(unread > 0){
+  const badge = document.createElement("span");
+  badge.className = "badge";
+  badge.innerText = unread;
+  badgeArea.appendChild(badge);
+}
+
 
 }
 
@@ -217,28 +254,35 @@ function moveCustomerToTop(number){
 
 // Mark unread
 function markUnread(number){
-  if(number===currentCustomer) return;
-  const li=document.getElementById(sanitizeId(number));
+  if(number === currentCustomer) return;
+
+  let count = getUnread(number) + 1;
+  setUnread(number, count);
+
+  const li = document.getElementById(sanitizeId(number));
   if(!li) return;
 
-  let badge=li.querySelector(".badge");
+  let badge = li.querySelector(".badge");
   if(!badge){
-    badge=document.createElement("span");
-    badge.className="badge";
-    badge.innerText="1";
+    badge = document.createElement("span");
+    badge.className = "badge";
     li.querySelector(".badge-area").appendChild(badge);
-  }else{
-    badge.innerText=String(parseInt(badge.innerText)+1);
   }
+  badge.innerText = count;
 }
+
 
 // Clear unread
 function clearUnread(number){
-  const li=document.getElementById(sanitizeId(number));
+  clearUnreadStorage(number);
+
+  const li = document.getElementById(sanitizeId(number));
   if(!li) return;
-  const badge=li.querySelector(".badge");
+
+  const badge = li.querySelector(".badge");
   if(badge) badge.remove();
 }
+
 
 // Select customer
 function selectCustomer(number){
