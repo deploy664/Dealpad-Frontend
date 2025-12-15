@@ -483,8 +483,8 @@ fileInput.onchange=e=>{
 let recorder = null;
 let chunks = [];
 let recordingMime = '';
+let isCancelled = false; // <-- add this flag
 
-// Record button click
 recordBtn.onclick = async e => {
   e.preventDefault();
   if (!currentCustomer) return alert("Select a customer first.");
@@ -499,11 +499,12 @@ recordBtn.onclick = async e => {
 
       recorder = new MediaRecorder(stream, { mimeType: recordingMime });
       chunks = [];
+      isCancelled = false; // reset flag when starting
 
       recorder.ondataavailable = e => chunks.push(e.data);
 
       recorder.onstop = () => {
-        if (!chunks.length) return; // If canceled, do nothing
+        if (isCancelled || !chunks.length) return; // ✅ skip sending
 
         const blob = new Blob(chunks, { type: recordingMime || 'audio/ogg' });
         chunks = [];
@@ -559,14 +560,16 @@ recordBtn.onclick = async e => {
 // Cancel button click
 cancelRecordBtn.onclick = () => {
   if (recorder) {
-    recorder.stop(); // triggers onstop but we check chunks length to ignore
+    isCancelled = true; // ✅ set flag to skip sending
+    recorder.stop();     // triggers onstop but now will not send
     recorder = null;
-    chunks = []; // discard recorded data
+    chunks = [];
     recordBtn.innerText = "🎤";
     cancelRecordBtn.style.display = "none";
     alert("Recording canceled!");
   }
 };
+
 // Enter send
 messageInput.onkeydown=e=>{
   if(e.key==="Enter"){
