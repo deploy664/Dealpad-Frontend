@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Admin Dashboard</title>
+
+<style>
+body{
+  margin:0;
+  font-family:Arial,sans-serif;
+  background:#f4f6fb;
+}
+.header{
+  background:#2d1bbf;
+  color:#fff;
+  padding:12px 20px;
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+}
+.container{
+  display:flex;
+  height:calc(100vh - 56px);
+}
+.sidebar{
+  width:300px;
+  background:#fff;
+  border-right:1px solid #ddd;
+  padding:12px;
+  overflow:auto;
+}
+.main{
+  flex:1;
+  padding:16px;
+  overflow:auto;
+}
+h3{margin-top:0}
+.agent{
+  border:1px solid #ddd;
+  padding:10px;
+  border-radius:8px;
+  margin-bottom:10px;
+}
+.agent.online{border-left:6px solid #2ecc71}
+.agent.offline{border-left:6px solid #e74c3c}
+.chat{
+  border:1px solid #ddd;
+  padding:10px;
+  border-radius:8px;
+  margin-bottom:10px;
+}
+select,button{
+  padding:6px;
+  margin-top:6px;
+}
+.logout{
+  background:#e74c3c;
+  color:#fff;
+  border:none;
+  padding:6px 12px;
+  border-radius:6px;
+  cursor:pointer;
+}
+</style>
+</head>
+
+<body>
+
+<div class="header">
+  <h2>Admin Dashboard</h2>
+  <button class="logout" onclick="logout()">Logout</button>
+</div>
+
+<div class="container">
+
+<!-- AGENTS -->
+<div class="sidebar">
+  <h3>Agents</h3>
+  <div id="agentsList">Loading agents...</div>
+</div>
+
+<!-- MAIN -->
+<div class="main">
+  <h3>Active Chats</h3>
+  <div id="chatsList">Loading chats...</div>
+</div>
+
+</div>
+
+<script src="https://dealpad-backend-1.onrender.com/socket.io/socket.io.js"></script>
+
+<script>
+const adminId = localStorage.getItem("adminId");
+if(!adminId) location.href="login.html";
+
+const socket = io("https://dealpad-backend-1.onrender.com",{
+  transports:["websocket"]
+});
+
+socket.on("connect",()=>{
+  socket.emit("admin_register", adminId);
+});
+
+// ----------------- AGENTS -----------------
+socket.on("agents_status", agents=>{
+  const box=document.getElementById("agentsList");
+  box.innerHTML="";
+  agents.forEach(a=>{
+    const div=document.createElement("div");
+    div.className="agent "+(a.online?"online":"offline");
+    div.innerHTML=`
+      <b>${a.name || a._id}</b><br>
+      Status: ${a.online?"Online":"Offline"}<br>
+      Active Chats: ${a.activeChats || 0}
+    `;
+    box.appendChild(div);
+  });
+});
+
+// ----------------- ACTIVE CHATS -----------------
+socket.on("active_chats", chats=>{
+  const box=document.getElementById("chatsList");
+  box.innerHTML="";
+  chats.forEach(c=>{
+    const div=document.createElement("div");
+    div.className="chat";
+    div.innerHTML=`
+      <b>Customer:</b> ${c.customer}<br>
+      <b>Agent:</b> ${c.agent || "Unassigned"}<br>
+      <b>Last Active:</b> ${new Date(c.updatedAt).toLocaleString()}<br>
+
+      <select id="agentSel-${c.customer}">
+        ${window.allAgents?.map(a=>
+          `<option value="${a._id}">${a.name||a._id}</option>`
+        ).join("")}
+      </select>
+
+      <button onclick="transferChat('${c.customer}')">
+        Transfer
+      </button>
+    `;
+    box.appendChild(div);
+  });
+});
+
+// ----------------- CACHE AGENTS -----------------
+socket.on("agents_cache",agents=>{
+  window.allAgents=agents;
+});
+
+// ----------------- TRANSFER -----------------
+function transferChat(customer){
+  const sel=document.getElementById("agentSel-"+customer);
+  const agentId=sel.value;
+  socket.emit("transfer_chat",{ customer, agentId });
+  alert("Chat transferred");
+}
+
+// ----------------- LOGOUT -----------------
+function logout(){
+  if(confirm("Logout admin?")){
+    socket.disconnect();
+    localStorage.removeItem("adminId");
+    location.href="login.html";
+  }
+}
+</script>
+
+</body>
+</html>
