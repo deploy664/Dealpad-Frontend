@@ -38,9 +38,6 @@ body{margin:0;font-family:Arial;background:#f4f6fb}
     <div class="chat-body" id="chatBody"></div>
     <div class="chat-input">
       <input id="msgInput" placeholder="Type reply as Admin..." />
-      <input type="file" id="fileInput" style="display:none" />
-      <button id="attachBtn" title="Attach file/image">📎</button>
-      <button id="recordBtn" title="Record voice">🎤</button>
       <button onclick="sendMsg()">Send</button>
     </div>
   </div>
@@ -48,12 +45,6 @@ body{margin:0;font-family:Arial;background:#f4f6fb}
 
 <script src="https://dealpad-backend-1.onrender.com/socket.io/socket.io.js"></script>
 <script>
-// --- File & Voice Controls ---
-const fileInput = document.getElementById('fileInput');
-const attachBtn = document.getElementById('attachBtn');
-const recordBtn = document.getElementById('recordBtn');
-let recorder;
-let chunks = [];
 const adminId = localStorage.getItem("adminId");
 if(!adminId) location.href='login.html';
 
@@ -63,8 +54,6 @@ let activeChat = null;
 
 socket.on('connect',()=>{
   socket.emit('admin_register', adminId);
-  // Request initial list of chats for this admin
-  socket.emit('admin_get_all_chats');
 });
 
 // RECEIVE ALL CHATS (MASTER VIEW)
@@ -79,8 +68,7 @@ function renderChatList(){
   allChats.forEach(c=>{
     const div=document.createElement('div');
     div.className='agent'+(activeChat?.customer===c.customer?' active':'');
-    const agentLabel = c.agent || 'None';
-    div.innerHTML=`<b>${c.customer}</b><br><small>Agent: ${agentLabel}</small>`;
+    div.innerHTML=`<b>${c.customer}</b><br><small>Agent: ${c.agent||'None'}</small>`;
     div.onclick=()=>openChat(c);
     box.appendChild(div);
   });
@@ -89,130 +77,42 @@ function renderChatList(){
 function openChat(chat){
   activeChat = chat;
   document.getElementById('chatHeader').innerText = `Customer: ${chat.customer} | Agent: ${chat.agent}`;
-  // load message history for selected customer phone
-  socket.emit('load_messages', chat.customer);
+  socket.emit('admin_join_chat',{customer:chat.customer});
 }
-
 
 // CHAT HISTORY
 socket.on('chat_history', msgs => {
-  const body = document.getElementById('chatBody');
-  body.innerHTML = '';
-  msgs.forEach(m => {
-    addMsg(m.sender, m.message, {
-      fileData: m.fileData,
-      fileType: m.fileType,
-      fileName: m.fileName,
-      voiceNote: m.voiceNote,
-      audioData: m.audioData
-    });
-  });
+  const body=document.getElementById('chatBody');
+  body.innerHTML='';
+  msgs.forEach(m=>addMsg(m.from,m.text));
 });
 
 // LIVE MESSAGE
 socket.on('new_message', m => {
-  if (activeChat && m.customer === activeChat.customer) {
-    addMsg(m.sender, m.message, {
-      fileData: m.fileData,
-      fileType: m.fileType,
-      fileName: m.fileName,
-      voiceNote: m.voiceNote,
-      audioData: m.audioData
-    });
+  if(activeChat && m.customer===activeChat.customer){
+    addMsg(m.from,m.text);
   }
 });
 
-
-function addMsg(from, text, opts = {}) {
-  const body = document.getElementById('chatBody');
-  const div = document.createElement('div');
-  div.className = 'msg ' + (from === 'admin' ? 'admin' : 'customer');
-  if (opts.fileData && opts.fileType) {
-    if (opts.fileType.startsWith('image')) {
-      div.innerHTML = `<div class='bubble'><img src='${opts.fileData}' style='max-width:180px;border-radius:6px;'/></div>`;
-    } else {
-      div.innerHTML = `<div class='bubble'><a href='${opts.fileData}' download='${opts.fileName||'file'}'>📎 ${opts.fileName||'Download File'}</a></div>`;
-    }
-  } else if (opts.voiceNote && opts.audioData) {
-    div.innerHTML = `<div class='bubble'><audio controls src='${opts.audioData}'></audio></div>`;
-  } else {
-    div.innerHTML = `<div class='bubble'>${text}</div>`;
-  }
+function addMsg(from,text){
+  const body=document.getElementById('chatBody');
+  const div=document.createElement('div');
+  div.className='msg '+(from==='admin'?'admin':'customer');
+  div.innerHTML=`<div class='bubble'>${text}</div>`;
   body.appendChild(div);
-  body.scrollTop = body.scrollHeight;
+  body.scrollTop=body.scrollHeight;
 }
 
-
-function sendMsg() {
-  const input = document.getElementById('msgInput');
-  if ((!input.value || input.value.trim() === '') && !sendMsg.pendingFile && !sendMsg.pendingAudio) return;
-  if (!activeChat) return;
-
-  // Prepare message data
-  const data = {
-    to: activeChat.customer,
-    message: input.value || ''
-  };
-  if (sendMsg.pendingFile) {
-    Object.assign(data, sendMsg.pendingFile);
-    addMsg('admin', '', sendMsg.pendingFile);
-    sendMsg.pendingFile = null;
-  } else if (sendMsg.pendingAudio) {
-    Object.assign(data, sendMsg.pendingAudio);
-    addMsg('admin', '', sendMsg.pendingAudio);
-    sendMsg.pendingAudio = null;
-  } else {
-    addMsg('admin', input.value);
-  }
-  socket.emit('admin_message', data);
-  input.value = '';
+function sendMsg(){
+  const input=document.getElementById('msgInput');
+  if(!input.value || !activeChat) return;
+  socket.emit('admin_send_message',{
+    customer:activeChat.customer,
+    text:input.value
+  });
+  addMsg('admin',input.value);
+  input.value='';
 }
-
-// File/image upload
-attachBtn.onclick = () => fileInput.click();
-fileInput.onchange = () => {
-  const file = fileInput.files[0];
-  if (!file) return;
-  const reader = new FileReader();
-  reader.onload = () => {
-    sendMsg.pendingFile = {
-      fileData: reader.result,
-      fileName: file.name,
-      fileType: file.type
-    };
-    sendMsg();
-  };
-  reader.readAsDataURL(file);
-};
-
-// Voice note
-recordBtn.onclick = async () => {
-  if (!recorder) {
-    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-    recorder = new MediaRecorder(stream, { mimeType: 'audio/webm' });
-    chunks = [];
-    recorder.ondataavailable = e => { if (e.data.size > 0) chunks.push(e.data); };
-    recorder.onstop = () => {
-      const blob = new Blob(chunks, { type: 'audio/webm' });
-      const reader = new FileReader();
-      reader.onload = () => {
-        sendMsg.pendingAudio = {
-          voiceNote: true,
-          audioData: reader.result,
-          fileType: 'audio/webm'
-        };
-        sendMsg();
-      };
-      reader.readAsDataURL(blob);
-    };
-    recorder.start();
-    recordBtn.innerText = '⏹ Stop';
-  } else {
-    recorder.stop();
-    recorder = null;
-    recordBtn.innerText = '🎤';
-  }
-};
 
 function logout(){
   socket.disconnect();
