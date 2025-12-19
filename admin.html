@@ -1,248 +1,124 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<title>Admin Dashboard</title>
-
+<meta charset="UTF-8" />
+<title>Admin Master Inbox</title>
 <style>
-body{
-  margin:0;
-  font-family:Arial,sans-serif;
-  background:#f4f6fb;
-}
-.header{
-  background:#2d1bbf;
-  color:#fff;
-  padding:12px 20px;
-  display:flex;
-  justify-content:space-between;
-  align-items:center;
-  box-shadow: 0 2px 5px rgba(0,0,0,0.1);
-}
-.container{
-  display:flex;
-  height:calc(100vh - 60px);
-}
-.sidebar{
-  width:280px;
-  background:#fff;
-  border-right:1px solid #ddd;
-  padding:16px;
-  overflow:auto;
-  box-shadow: 2px 0 5px rgba(0,0,0,0.05);
-}
-.main{
-  flex:1;
-  padding:16px;
-  overflow:auto;
-}
-h3{margin-top:0; margin-bottom:10px; color:#333;}
-.agent{
-  border:1px solid #ddd;
-  padding:10px;
-  border-radius:8px;
-  margin-bottom:10px;
-  box-shadow: 0 1px 3px rgba(0,0,0,0.05);
-  display:flex;
-  justify-content:space-between;
-  align-items:center;
-}
-.agent.online{border-left:6px solid #2ecc71;}
-.agent.offline{border-left:6px solid #e74c3c;}
-.agent-status{
-  display:flex;
-  align-items:center;
-  gap:6px;
-}
-.agent-status span{
-  width:10px;
-  height:10px;
-  border-radius:50%;
-  display:inline-block;
-}
-.chat-table{
-  width:100%;
-  border-collapse:collapse;
-}
-.chat-table th, .chat-table td{
-  border-bottom:1px solid #ddd;
-  padding:8px;
-  text-align:left;
-}
-.chat-table th{
-  background:#f0f0f0;
-}
-select,button{
-  padding:6px;
-  margin-top:6px;
-  border-radius:4px;
-  border:1px solid #ccc;
-}
-button{
-  background:#2d1bbf;
-  color:#fff;
-  cursor:pointer;
-  border:none;
-}
-button:hover{
-  background:#1a0fbf;
-}
-.logout{
-  background:#e74c3c;
-  color:#fff;
-  border:none;
-  padding:6px 12px;
-  border-radius:6px;
-  cursor:pointer;
-}
-#agentFilter{
-  width:100%;
-  margin-bottom:10px;
-}
+body{margin:0;font-family:Arial;background:#f4f6fb}
+.header{background:#2d1bbf;color:#fff;padding:12px 20px;display:flex;justify-content:space-between;align-items:center}
+.container{display:flex;height:calc(100vh - 56px)}
+.sidebar{width:320px;background:#fff;border-right:1px solid #ddd;overflow:auto}
+.main{flex:1;display:flex;flex-direction:column}
+.agent{padding:10px;border-bottom:1px solid #eee;cursor:pointer}
+.agent.active{background:#eef}
+.chat-header{padding:10px;border-bottom:1px solid #ddd;background:#fff}
+.chat-body{flex:1;padding:10px;overflow:auto;background:#fafafa}
+.msg{margin-bottom:8px;max-width:70%}
+.msg.admin{margin-left:auto;text-align:right}
+.msg .bubble{padding:8px 10px;border-radius:10px;display:inline-block}
+.msg.customer .bubble{background:#fff;border:1px solid #ddd}
+.msg.admin .bubble{background:#2d1bbf;color:#fff}
+.chat-input{display:flex;padding:10px;border-top:1px solid #ddd;background:#fff}
+.chat-input input{flex:1;padding:8px;border:1px solid #ccc;border-radius:6px}
+.chat-input button{margin-left:8px;padding:8px 14px;border:none;background:#2d1bbf;color:#fff;border-radius:6px;cursor:pointer}
 </style>
 </head>
-
 <body>
-
 <div class="header">
-  <h2>Admin Dashboard</h2>
-  <button class="logout" onclick="logout()">Logout</button>
+  <b>Admin – Master Inbox</b>
+  <button onclick="logout()">Logout</button>
 </div>
-
 <div class="container">
+  <!-- LEFT: ALL CHATS -->
+  <div class="sidebar" id="chatList">Loading chats...</div>
 
-<!-- AGENTS -->
-<div class="sidebar">
-  <h3>Agents</h3>
-  <div id="agentsList">Loading agents...</div>
-  <h3>Filter Chats</h3>
-  <select id="agentFilter">
-    <option value="">All Agents</option>
-  </select>
-</div>
-
-<!-- MAIN -->
-<div class="main">
-  <h3>Active Chats</h3>
-  <table class="chat-table">
-    <thead>
-      <tr>
-        <th>Customer</th>
-        <th>Agent</th>
-        <th>Last Active</th>
-        <th>Transfer</th>
-      </tr>
-    </thead>
-    <tbody id="chatsList">
-      <tr><td colspan="4">Loading chats...</td></tr>
-    </tbody>
-  </table>
-</div>
-
+  <!-- RIGHT: CHAT WINDOW -->
+  <div class="main">
+    <div class="chat-header" id="chatHeader">Select a chat</div>
+    <div class="chat-body" id="chatBody"></div>
+    <div class="chat-input">
+      <input id="msgInput" placeholder="Type reply as Admin..." />
+      <button onclick="sendMsg()">Send</button>
+    </div>
+  </div>
 </div>
 
 <script src="https://dealpad-backend-1.onrender.com/socket.io/socket.io.js"></script>
 <script>
 const adminId = localStorage.getItem("adminId");
-if(!adminId) location.href="login.html";
+if(!adminId) location.href='login.html';
 
-const socket = io("https://dealpad-backend-1.onrender.com", { transports:["websocket"] });
+const socket = io("https://dealpad-backend-1.onrender.com", {transports:['websocket']});
+let allChats = [];
+let activeChat = null;
 
-// Socket connection
-socket.on("connect", () => {
-  socket.emit("admin_register", adminId);
+socket.on('connect',()=>{
+  socket.emit('admin_register', adminId);
 });
 
-// Agents & Filter
-socket.on("agents_cache", agents => {
-  window.allAgents = agents;
-  const filter = document.getElementById("agentFilter");
-  filter.innerHTML = '<option value="">All Agents</option>';
-  agents.forEach(a => {
-    const opt = document.createElement("option");
-    opt.value = a._id;
-    opt.textContent = a.name || a._id;
-    filter.appendChild(opt);
-  });
-  updateChatsDisplay();
+// RECEIVE ALL CHATS (MASTER VIEW)
+socket.on('admin_all_chats', chats => {
+  allChats = chats;
+  renderChatList();
 });
 
-// Update Agents List
-socket.on("agents_status", agents => {
-  const box = document.getElementById("agentsList");
-  box.innerHTML = "";
-  agents.forEach(a => {
-    const div = document.createElement("div");
-    div.className = "agent";
-    div.innerHTML = `
-      <div><b>${a.name || a._id}</b><br>Active Chats: ${a.activeChats || 0}</div>
-      <div class="agent-status">
-        <span style="background:${a.online?'#2ecc71':'#e74c3c'}"></span>
-        ${a.online?'Online':'Offline'}
-      </div>
-    `;
+function renderChatList(){
+  const box = document.getElementById('chatList');
+  box.innerHTML='';
+  allChats.forEach(c=>{
+    const div=document.createElement('div');
+    div.className='agent'+(activeChat?.customer===c.customer?' active':'');
+    div.innerHTML=`<b>${c.customer}</b><br><small>Agent: ${c.agent||'None'}</small>`;
+    div.onclick=()=>openChat(c);
     box.appendChild(div);
   });
+}
+
+function openChat(chat){
+  activeChat = chat;
+  document.getElementById('chatHeader').innerText = `Customer: ${chat.customer} | Agent: ${chat.agent}`;
+  socket.emit('admin_join_chat',{customer:chat.customer});
+}
+
+// CHAT HISTORY
+socket.on('chat_history', msgs => {
+  const body=document.getElementById('chatBody');
+  body.innerHTML='';
+  msgs.forEach(m=>addMsg(m.from,m.text));
 });
 
-// Active Chats
-let allChats = [];
-socket.on("active_chats", chats => {
-  allChats = chats;
-  updateChatsDisplay();
-});
-
-function updateChatsDisplay(){
-  const filterAgent = document.getElementById("agentFilter").value;
-  const box = document.getElementById("chatsList");
-  let filtered = allChats;
-  if(filterAgent) filtered = allChats.filter(c => c.agent === filterAgent);
-
-  box.innerHTML = "";
-  if(filtered.length === 0){
-    box.innerHTML = `<tr><td colspan="4">No active chats</td></tr>`;
-    return;
+// LIVE MESSAGE
+socket.on('new_message', m => {
+  if(activeChat && m.customer===activeChat.customer){
+    addMsg(m.from,m.text);
   }
+});
 
-  filtered.forEach(c => {
-    const row = document.createElement("tr");
-    row.innerHTML = `
-      <td>${c.customer || "Unknown"}</td>
-      <td>${c.agent || "Unassigned"}</td>
-      <td>${new Date(c.updatedAt).toLocaleString() || "N/A"}</td>
-      <td>
-        <select id="agentSel-${c.customer}">
-          ${window.allAgents?.map(a => 
-            `<option value="${a._id}" ${a._id===c.agent?'selected':''}>${a.name||a._id}</option>`
-          ).join('')}
-        </select>
-        <button onclick="transferChat('${c.customer}')">Transfer</button>
-      </td>
-    `;
-    box.appendChild(row);
+function addMsg(from,text){
+  const body=document.getElementById('chatBody');
+  const div=document.createElement('div');
+  div.className='msg '+(from==='admin'?'admin':'customer');
+  div.innerHTML=`<div class='bubble'>${text}</div>`;
+  body.appendChild(div);
+  body.scrollTop=body.scrollHeight;
+}
+
+function sendMsg(){
+  const input=document.getElementById('msgInput');
+  if(!input.value || !activeChat) return;
+  socket.emit('admin_send_message',{
+    customer:activeChat.customer,
+    text:input.value
   });
+  addMsg('admin',input.value);
+  input.value='';
 }
 
-// Filter change
-document.getElementById("agentFilter").addEventListener("change", updateChatsDisplay);
-
-// Transfer chat
-function transferChat(customer){
-  const sel = document.getElementById("agentSel-"+customer);
-  const agentId = sel.value;
-  socket.emit("transfer_chat", { customer, agentId });
-  alert("Chat transferred successfully!");
-}
-
-// Logout
 function logout(){
-  if(confirm("Logout admin?")){
-    socket.disconnect();
-    localStorage.removeItem("adminId");
-    location.href="login.html";
-  }
+  socket.disconnect();
+  localStorage.removeItem('adminId');
+  location.href='login.html';
 }
 </script>
-
 </body>
 </html>
