@@ -220,11 +220,31 @@ function renderMessage(msg,sender){
 
   const imageData = msg.fileData || msg.imageData || msg.image;
   const imageType = msg.fileType || msg.imageType;
-  if(imageData && imageType && imageType.startsWith("image")){ const img=document.createElement("img"); img.src=imageData; img.className="message-image"; div.appendChild(img); }
+    if(imageData && imageType && imageType.startsWith("image")){ 
+      const img=document.createElement("img"); 
+      // Proxy WhatsApp CDN URLs
+      if(imageData.startsWith("https://")){
+        img.src = `/media-proxy?url=${encodeURIComponent(imageData)}`;
+      } else {
+        img.src = imageData;
+      }
+      img.className="message-image"; 
+      div.appendChild(img); 
+    }
 
   const audioData = msg.audioData || msg.voiceData;
   const isVoice = msg.voiceNote || msg.isVoice;
-  if(isVoice && audioData){ const audio=document.createElement("audio"); audio.controls=true; audio.src=audioData; div.appendChild(audio); }
+    if(isVoice && audioData){ 
+      const audio=document.createElement("audio"); 
+      audio.controls=true; 
+      // Proxy WhatsApp CDN URLs
+      if(audioData.startsWith("https://")){
+        audio.src = `/media-proxy?url=${encodeURIComponent(audioData)}`;
+      } else {
+        audio.src = audioData;
+      }
+      div.appendChild(audio); 
+    }
 
   if(msg.fileData && msg.fileName){ const link=document.createElement("a"); link.href=msg.fileData; link.target="_blank"; link.download=msg.fileName; link.className="file-link"; link.innerText="📎 "+msg.fileName; div.appendChild(link); }
 
