@@ -224,7 +224,7 @@ function renderMessage(msg,sender){
       const img=document.createElement("img"); 
       // Proxy WhatsApp CDN URLs
       if(imageData.startsWith("https://")){
-        img.src = `/media-proxy?url=${encodeURIComponent(imageData)}`;
+        img.src = `https://dealpad-backend-1.onrender.com/media-proxy?url=${encodeURIComponent(imageData)}`;
       } else {
         img.src = imageData;
       }
@@ -239,7 +239,7 @@ function renderMessage(msg,sender){
       audio.controls=true; 
       // Proxy WhatsApp CDN URLs
       if(audioData.startsWith("https://")){
-        audio.src = `/media-proxy?url=${encodeURIComponent(audioData)}`;
+        audio.src = `https://dealpad-backend-1.onrender.com/media-proxy?url=${encodeURIComponent(audioData)}`;
       } else {
         audio.src = audioData;
       }
