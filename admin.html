@@ -70,7 +70,8 @@ function renderChatList(){
   allChats.forEach(c=>{
     const div=document.createElement('div');
     div.className='agent'+(activeChat?.customer===c.customer?' active':'');
-    div.innerHTML=`<b>${c.customer}</b><br><small>Agent: ${c.agent||'None'}</small>`;
+    const agentLabel = c.agent || 'None';
+    div.innerHTML=`<b>${c.customer}</b><br><small>Agent: ${agentLabel}</small>`;
     div.onclick=()=>openChat(c);
     box.appendChild(div);
   });
@@ -79,20 +80,21 @@ function renderChatList(){
 function openChat(chat){
   activeChat = chat;
   document.getElementById('chatHeader').innerText = `Customer: ${chat.customer} | Agent: ${chat.agent}`;
-  socket.emit('admin_join_chat',{customer:chat.customer});
+  // load message history for selected customer phone
+  socket.emit('load_messages', chat.customer);
 }
 
 // CHAT HISTORY
 socket.on('chat_history', msgs => {
   const body=document.getElementById('chatBody');
   body.innerHTML='';
-  msgs.forEach(m=>addMsg(m.from,m.text));
+  msgs.forEach(m=>addMsg(m.sender,m.message));
 });
 
 // LIVE MESSAGE
 socket.on('new_message', m => {
   if(activeChat && m.customer===activeChat.customer){
-    addMsg(m.from,m.text);
+    addMsg(m.sender,m.message);
   }
 });
 
