@@ -184,18 +184,36 @@ fileInput.onchange = async () => {
 };
 
 function showFile(data) {
-    if (!data.fileData || !data.fileType) return;
+    if (!data.fileData && !data.audioData) return;
 
     const div = document.createElement("div");
     div.classList.add("message", data.sender === "agent" ? "agent" : "customer");
 
-    if (data.fileType.startsWith("image")) {
+    // WhatsApp stickers (treat as image)
+    if (data.fileType && data.fileType.includes("sticker")) {
+        const img = document.createElement("img");
+        img.src = data.fileData;
+        img.style.maxWidth = "120px";
+        img.style.borderRadius = "6px";
+        div.appendChild(img);
+    }
+    // Images (base64 or WhatsApp CDN URL)
+    else if (data.fileType && data.fileType.startsWith("image")) {
         const img = document.createElement("img");
         img.src = data.fileData;
         img.style.maxWidth = "200px";
         img.style.borderRadius = "6px";
         div.appendChild(img);
-    } else {
+    }
+    // Audio/voice (base64 or WhatsApp CDN URL)
+    else if (data.voiceNote && (data.audioData || data.fileData)) {
+        const audio = document.createElement("audio");
+        audio.controls = true;
+        audio.src = data.audioData || data.fileData;
+        div.appendChild(audio);
+    }
+    // Other files (base64 or WhatsApp CDN URL)
+    else if (data.fileData && data.fileName) {
         const a = document.createElement("a");
         a.href = data.fileData;
         a.download = data.fileName || "file";
@@ -268,14 +286,14 @@ recordBtn.onclick = async () => {
 // 🔊 SHOW AUDIO
 // ======================================================
 function showAudio(data) {
-    if (!data.audioData) return;
+    if (!data.audioData && !data.fileData) return;
 
     const div = document.createElement("div");
     div.classList.add("message", data.sender === "agent" ? "agent" : "customer");
 
     const audio = document.createElement("audio");
     audio.controls = true;
-    audio.src = data.audioData;
+    audio.src = data.audioData || data.fileData;
 
     div.appendChild(audio);
     chatBox.appendChild(div);
