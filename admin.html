@@ -93,17 +93,32 @@ function openChat(chat){
   socket.emit('load_messages', chat.customer);
 }
 
+
 // CHAT HISTORY
 socket.on('chat_history', msgs => {
-  const body=document.getElementById('chatBody');
-  body.innerHTML='';
-  msgs.forEach(m=>addMsg(m.sender,m.message));
+  const body = document.getElementById('chatBody');
+  body.innerHTML = '';
+  msgs.forEach(m => {
+    addMsg(m.sender, m.message, {
+      fileData: m.fileData,
+      fileType: m.fileType,
+      fileName: m.fileName,
+      voiceNote: m.voiceNote,
+      audioData: m.audioData
+    });
+  });
 });
 
 // LIVE MESSAGE
 socket.on('new_message', m => {
-  if(activeChat && m.customer===activeChat.customer){
-    addMsg(m.sender,m.message);
+  if (activeChat && m.customer === activeChat.customer) {
+    addMsg(m.sender, m.message, {
+      fileData: m.fileData,
+      fileType: m.fileType,
+      fileName: m.fileName,
+      voiceNote: m.voiceNote,
+      audioData: m.audioData
+    });
   }
 });
 
