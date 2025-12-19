@@ -99,9 +99,14 @@ function showMessage(sender, text, type) {
 socket.on("chat_history", (messages) => {
     chatBox.innerHTML = "";
     messages.forEach(msg => {
-        if (msg.fileData && msg.fileType) return showFile(msg);
-        if (msg.voiceNote && msg.audioData) return showAudio(msg);
-
+        if (msg.fileData && msg.fileType) {
+            showFile(msg);
+            return;
+        }
+        if (msg.voiceNote && msg.audioData) {
+            showAudio(msg);
+            return;
+        }
         showMessage(
             msg.sender,
             msg.message || "",
@@ -123,10 +128,16 @@ socket.on("incoming_message", (data) => {
 
     if (data.from !== activeCustomer) return;
 
-    if (data.fileData && data.fileType) return showFile(data);
-    if (data.voiceNote && data.audioData) return showAudio(data);
+    if (data.fileData && data.fileType) {
+        showFile(data);
+        return;
+    }
+    if (data.voiceNote && data.audioData) {
+        showAudio(data);
+        return;
+    }
 
-    showMessage("Customer", data.message || "", "customer");
+    showMessage(data.sender === "agent" ? "You" : "Customer", data.message || "", data.sender === "agent" ? "agent" : "customer");
 });
 
 // ======================================================
