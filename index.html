@@ -85,8 +85,6 @@
     <input type="file" id="fileInput" hidden />
     <button id="recordBtn" style="background:#008069; border-radius:50%; width:60px; height:60px;">🎤</button>
     <button id="cancelRecordBtn" style="display:none; background:#e74c3c; border-radius:50%; width:60px; height:60px;">❌</button>
-
-
     <input type="text" id="messageInput" placeholder="Type your message..." />
     <button id="sendBtn" type="button">Send</button>
   </div>
@@ -109,21 +107,11 @@ const fileInput=document.getElementById('fileInput');
 const recordBtn=document.getElementById('recordBtn');
 const cancelRecordBtn = document.getElementById("cancelRecordBtn");
 
-function getUnread(number){
-  return parseInt(localStorage.getItem("unread-"+number)) || 0;
-}
-
-function setUnread(number, count){
-  localStorage.setItem("unread-"+number, count);
-}
-
-function clearUnreadStorage(number){
-  localStorage.removeItem("unread-"+number);
-}
-
+function getUnread(number){ return parseInt(localStorage.getItem("unread-"+number)) || 0; }
+function setUnread(number, count){ localStorage.setItem("unread-"+number, count); }
+function clearUnreadStorage(number){ localStorage.removeItem("unread-"+number); }
 
 let currentCustomer=null;
-
 const agentId=localStorage.getItem("agentId");
 if(!agentId) window.location.href="login.html";
 
@@ -134,293 +122,116 @@ const socket = io("https://dealpad-backend-1.onrender.com", {
   transports: ["websocket"]
 });
 
-// 👇 YAHAN
-socket.on("connect", () => {
-  socket.emit("register_agent", agentId);
-});
-
+// Socket registration
+socket.on("connect", () => { socket.emit("register_agent", agentId); });
 socket.on("reconnect", () => {
   socket.emit("register_agent", agentId);
-
-  // 🔁 reload active chat (IMPORTANT)
-  if(currentCustomer){
-    socket.emit("load_messages", currentCustomer);
-  }
+  if(currentCustomer) socket.emit("load_messages", currentCustomer);
 });
-// 👁️ TAB VISIBILITY HANDLER (IMPORTANT)
 document.addEventListener("visibilitychange", () => {
-  if(!document.hidden){
-    if(!socket.connected){
-      console.log("Tab active → reconnecting socket");
-      socket.connect();
-    }
-  }
+  if(!document.hidden && !socket.connected) socket.connect();
 });
-
-
-
 
 function uuid(){return Math.random().toString(36).substring(2)+Date.now().toString(36);}
 function sanitizeId(num){return "cust-"+num.replace(/\D/g,"");}
 
-// ---- Save name helpers ----
-function saveCustomerName(number, name){
-  localStorage.setItem("custName-"+number, name);
-}
-function getCustomerName(number){
-  return localStorage.getItem("custName-"+number);
-}
+// ---- Customer name helpers ----
+function saveCustomerName(number, name){ localStorage.setItem("custName-"+number, name); }
+function getCustomerName(number){ return localStorage.getItem("custName-"+number); }
 function updateCustomerDisplayName(number){
   const li = document.getElementById(sanitizeId(number));
   if(!li) return;
   const nameSpan = li.querySelector(".customer-name");
   const name = getCustomerName(number);
-  if(nameSpan){
-    nameSpan.textContent = name ? `(${name})` : '';
-  }
+  if(nameSpan) nameSpan.textContent = name ? `(${name})` : '';
 }
 
-// ---- Active timestamp helpers ----
-function updateCustomerActivity(number){
-  localStorage.setItem("custActive-"+number, Date.now());
-  moveCustomerToTop(number);
-}
-function getCustomerActivity(number){
-  return parseInt(localStorage.getItem("custActive-"+number)) || 0;
-}
+// ---- Customer activity ----
+function updateCustomerActivity(number){ localStorage.setItem("custActive-"+number, Date.now()); moveCustomerToTop(number); }
+function getCustomerActivity(number){ return parseInt(localStorage.getItem("custActive-"+number)) || 0; }
 
-// ---- Add customer to UI ----
+// ---- Add customer ----
 function addCustomerToUI(number){
   if(document.getElementById(sanitizeId(number))) return;
   const li=document.createElement("li");
   li.id=sanitizeId(number);
   li.dataset.number=number;
 
-  // Number span
-  const numSpan = document.createElement('span');
-  numSpan.textContent = number;
+  const numSpan = document.createElement('span'); numSpan.textContent = number;
+  const nameSpan = document.createElement('span'); nameSpan.className = 'customer-name';
+  const savedName = getCustomerName(number); if(savedName) nameSpan.textContent = `(${savedName})`;
 
-  // Name span
-  const nameSpan = document.createElement('span');
-  nameSpan.className = 'customer-name';
-  const savedName = getCustomerName(number);
-  if(savedName) nameSpan.textContent = `(${savedName})`;
+  const saveBtn = document.createElement('button'); saveBtn.className='save-btn'; saveBtn.innerHTML='💾';
+  saveBtn.title="Save/Edit Name";
+  saveBtn.onclick=(e)=>{ e.stopPropagation(); const newName=prompt(`Enter name for customer ${number}:`, getCustomerName(number)||""); 
+    if(newName && newName.trim().length>0){ saveCustomerName(number,newName.trim()); updateCustomerDisplayName(number);
+      if(currentCustomer===number){ customerNameEl.innerText=`Chat with ${number} (${newName.trim()})`; } } };
 
-  // Save button
-  const saveBtn = document.createElement('button');
-  saveBtn.className = 'save-btn';
-  saveBtn.innerHTML = '💾';
-  saveBtn.title = "Save/Edit Name";
-  saveBtn.onclick = (e)=>{
-    e.stopPropagation();
-    const newName = prompt(`Enter name for customer ${number}:`, getCustomerName(number) || "");
-    if(newName && newName.trim().length>0){
-      saveCustomerName(number, newName.trim());
-      updateCustomerDisplayName(number);
-      if(currentCustomer===number){
-        customerNameEl.innerText = `Chat with ${number} (${newName.trim()})`;
-        
-      }
-    }
-  };
-
-  // Badge area
-  const badgeArea = document.createElement('span');
-  badgeArea.className='badge-area';
-  badgeArea.style.marginLeft='auto';
-
+  const badgeArea=document.createElement('span'); badgeArea.className='badge-area'; badgeArea.style.marginLeft='auto';
   li.onclick=()=>selectCustomer(number);
-  li.appendChild(numSpan);
-  li.appendChild(nameSpan);
-  li.appendChild(saveBtn);
-  li.appendChild(badgeArea);
-
-  // Insert in correct position based on activity
+  li.appendChild(numSpan); li.appendChild(nameSpan); li.appendChild(saveBtn); li.appendChild(badgeArea);
   insertCustomerByActivity(li);
-  // ✅ RESTORE UNREAD BADGE (reload / logout ke baad)
-const unread = getUnread(number);
-if(unread > 0){
-  const badge = document.createElement("span");
-  badge.className = "badge";
-  badge.innerText = unread;
-  badgeArea.appendChild(badge);
+
+  const unread = getUnread(number);
+  if(unread>0){ const badge=document.createElement("span"); badge.className="badge"; badge.innerText=unread; badgeArea.appendChild(badge);}
 }
 
-
-}
-
-// Insert customer in list sorted by last activity
+// Sorted insert
 function insertCustomerByActivity(li){
-  const number = li.dataset.number;
-  const activity = getCustomerActivity(number);
+  const number = li.dataset.number; const activity = getCustomerActivity(number);
   const children = Array.from(customerListEl.children);
   let inserted = false;
   for(let i=0;i<children.length;i++){
     const childNum = children[i].dataset.number;
-    if(getCustomerActivity(childNum) < activity){
-      customerListEl.insertBefore(li, children[i]);
-      inserted = true;
-      break;
-    }
+    if(getCustomerActivity(childNum) < activity){ customerListEl.insertBefore(li, children[i]); inserted=true; break; }
   }
   if(!inserted) customerListEl.appendChild(li);
 }
-
-// Move to top
-function moveCustomerToTop(number){
-  const li=document.getElementById(sanitizeId(number));
-  if(!li) return;
-  li.remove();
-  insertCustomerByActivity(li);
+function moveCustomerToTop(number){ const li=document.getElementById(sanitizeId(number)); if(!li) return; li.remove(); insertCustomerByActivity(li);}
+function markUnread(number){ if(number===currentCustomer) return; let count=getUnread(number)+1; setUnread(number,count);
+  const li=document.getElementById(sanitizeId(number)); if(!li) return; let badge=li.querySelector(".badge");
+  if(!badge){ badge=document.createElement("span"); badge.className="badge"; li.querySelector(".badge-area").appendChild(badge); }
+  badge.innerText=count;
 }
+function clearUnread(number){ clearUnreadStorage(number); const li=document.getElementById(sanitizeId(number)); if(!li) return;
+  const badge = li.querySelector(".badge"); if(badge) badge.remove(); }
 
-// Mark unread
-function markUnread(number){
-  if(number === currentCustomer) return;
-
-  let count = getUnread(number) + 1;
-  setUnread(number, count);
-
-  const li = document.getElementById(sanitizeId(number));
-  if(!li) return;
-
-  let badge = li.querySelector(".badge");
-  if(!badge){
-    badge = document.createElement("span");
-    badge.className = "badge";
-    li.querySelector(".badge-area").appendChild(badge);
-  }
-  badge.innerText = count;
-}
-
-
-// Clear unread
-function clearUnread(number){
-  clearUnreadStorage(number);
-
-  const li = document.getElementById(sanitizeId(number));
-  if(!li) return;
-
-  const badge = li.querySelector(".badge");
-  if(badge) badge.remove();
-}
-
-
-// Select customer
-function selectCustomer(number){
-  currentCustomer=number;
-  updateCustomerActivity(number);
+function selectCustomer(number){ currentCustomer=number; updateCustomerActivity(number);
   const savedName = getCustomerName(number);
-  customerNameEl.innerText = `Chat with ${number}${savedName ? ` (${savedName})` : ''}`;
-  chatBox.innerHTML="";
-  clearUnread(number);
-  socket.emit("load_messages",number);
+  customerNameEl.innerText=`Chat with ${number}${savedName ? ` (${savedName})` : ''}`;
+  chatBox.innerHTML=""; clearUnread(number); socket.emit("load_messages",number);
 }
 
+// Load customers
 async function loadCustomers(){
   customerListEl.innerHTML="<li>Loading...</li>";
   try{
-    const res = await fetch(
-      `https://dealpad-backend-1.onrender.com/agent/customers?agentId=${agentId}`
-    );
+    const res = await fetch(`https://dealpad-backend-1.onrender.com/agent/customers?agentId=${agentId}`);
     const customers = await res.json();
     customerListEl.innerHTML="";
-
     customers.sort((a,b)=>getCustomerActivity(b.number)-getCustomerActivity(a.number));
-
-    customers.forEach(c=>{
-      addCustomerToUI(c.number);
-
-      // 🔔 fallback unread recovery
-      if(!currentCustomer || currentCustomer !== c.number){
-        const unread = getUnread(c.number);
-        if(unread > 0){
-          markUnread(c.number);
-        }
-      }
-    });
-  }catch{
-    customerListEl.innerHTML="<li>Error loading customers</li>";
-  }
+    customers.forEach(c=>{ addCustomerToUI(c.number); });
+  }catch{ customerListEl.innerHTML="<li>Error loading customers</li>"; }
 }
 
-// Socket events
-socket.on("chat_history", msgs => {
-  chatBox.innerHTML = "";
-  msgs.forEach(m => {
-    // Always use renderMessage for all types
-    renderMessage(m, m.sender);
-  });
-  chatBox.scrollTop = chatBox.scrollHeight;
-});
-
-socket.on("new_customer",cust=>{
-  addCustomerToUI(cust.number);
-  updateCustomerActivity(cust.number);
-});
-
-socket.on("incoming_message", data => {
-  if(data.sender === "agent") return;
-
-  addCustomerToUI(data.from);
-  updateCustomerActivity(data.from);
-
-  if(data.from === currentCustomer){
-    renderMessage(data, "customer");
-  } else {
-    // Tab visible hai toh notification play karo
-    if (document.visibilityState === "visible") {
-      document.getElementById("notifSound").play().catch(() => {});
-    }
-    markUnread(data.from);
-  }
-});
-
-
-// Render message
+// Render messages (fixed to handle images/audio from customers)
 function renderMessage(msg,sender){
-  const div=document.createElement("div");
-  div.className=sender==="agent"?"agent-msg":"customer-msg";
+  const div=document.createElement("div"); div.className=sender==="agent"?"agent-msg":"customer-msg";
 
-  // Image
-  if(msg.fileType && msg.fileData && msg.fileType.startsWith("image")){
-    const img=document.createElement("img");
-    img.src=msg.fileData;
-    img.className="message-image";
-    div.appendChild(img);
-  }
-  // Voice
-  else if(msg.voiceNote && msg.audioData){
-    const audio=document.createElement("audio");
-    audio.controls=true;
-    audio.src=msg.audioData;
-    div.appendChild(audio);
-  }
-  // File
-  else if(msg.fileData && msg.fileName){
-    const link=document.createElement("a");
-    link.href=msg.fileData;
-    link.target="_blank";
-    link.download=msg.fileName;
-    link.className="file-link";
-    link.innerText="📎 "+msg.fileName;
-    div.appendChild(link);
-  }
-  // Text
-  else if(msg.message || msg.text){
-    div.innerText=msg.message || msg.text;
-  }
+  const imageData = msg.fileData || msg.imageData || msg.image;
+  const imageType = msg.fileType || msg.imageType;
+  if(imageData && imageType && imageType.startsWith("image")){ const img=document.createElement("img"); img.src=imageData; img.className="message-image"; div.appendChild(img); }
 
-  const meta=document.createElement("div");
-  meta.className="msg-meta";
-  let time = "";
-  if(msg.created_at && !isNaN(new Date(msg.created_at))){
-    const d=new Date(msg.created_at);
-    const date = d.toLocaleDateString("en-GB",{day:"2-digit",month:"short",year:"numeric"});
-    const t = d.toLocaleTimeString([], {hour:"2-digit",minute:"2-digit"});
-    time = `${date} • ${t}`;
-  }
+  const audioData = msg.audioData || msg.voiceData;
+  const isVoice = msg.voiceNote || msg.isVoice;
+  if(isVoice && audioData){ const audio=document.createElement("audio"); audio.controls=true; audio.src=audioData; div.appendChild(audio); }
 
+  if(msg.fileData && msg.fileName){ const link=document.createElement("a"); link.href=msg.fileData; link.target="_blank"; link.download=msg.fileName; link.className="file-link"; link.innerText="📎 "+msg.fileName; div.appendChild(link); }
+
+  if(msg.message || msg.text){ div.innerText=msg.message || msg.text; }
+
+  const meta=document.createElement("div"); meta.className="msg-meta"; 
+  let time=""; if(msg.created_at && !isNaN(new Date(msg.created_at))){ const d=new Date(msg.created_at); const date=d.toLocaleDateString("en-GB",{day:"2-digit",month:"short",year:"numeric"}); const t=d.toLocaleTimeString([],{hour:"2-digit",minute:"2-digit"}); time=`${date} • ${t}`;}
   let ticks=sender==="agent"?"✔✔":"";
   meta.innerHTML=`<span>${time}</span> <span class="meta-ticks">${ticks}</span>`;
   div.appendChild(meta);
@@ -429,181 +240,77 @@ function renderMessage(msg,sender){
   chatBox.scrollTop=chatBox.scrollHeight;
 }
 
+// Socket events
+socket.on("chat_history", msgs => { chatBox.innerHTML=""; msgs.forEach(m=>renderMessage(m,m.sender==="agent"?"agent":"customer")); });
+socket.on("new_customer",cust=>{ addCustomerToUI(cust.number); updateCustomerActivity(cust.number); });
+
+// Fixed incoming_message handler
+socket.on("incoming_message", data => {
+  addCustomerToUI(data.from); updateCustomerActivity(data.from);
+  renderMessage(data,"customer"); // always render for active customer
+  if(data.from !== currentCustomer){ markUnread(data.from); if(document.visibilityState==="visible"){ document.getElementById("notifSound").play().catch(()=>{}); } }
+});
+
 // Send text
-sendBtn.onclick=e=>{
-  e.preventDefault();
-  const msg=messageInput.value.trim();
-  if(!msg || !currentCustomer) return;
-
-  const tempId=uuid();
-
-  fetch("https://dealpad-backend-1.onrender.com/send",{
-    method:"POST",
-    headers:{"Content-Type":"application/json"},
-    body:JSON.stringify({ to:currentCustomer, message:msg, tempId })
-  });
-
+sendBtn.onclick=e=>{ e.preventDefault(); const msg=messageInput.value.trim(); if(!msg || !currentCustomer) return; const tempId=uuid();
+  fetch("https://dealpad-backend-1.onrender.com/send",{ method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({ to:currentCustomer, message:msg, tempId }) });
   socket.emit("agent_message",{to:currentCustomer,message:msg,tempId});
-  renderMessage({message: msg, created_at: new Date().toISOString()},"agent");
-
-  updateCustomerActivity(currentCustomer);
-
-  messageInput.value="";
-};
+  renderMessage({message: msg, created_at: new Date().toISOString()},"agent"); updateCustomerActivity(currentCustomer); messageInput.value=""; };
 
 // File send
 attachBtn.onclick=()=>fileInput.click();
-
 fileInput.onchange=e=>{
-  e.preventDefault();
-  const file=fileInput.files[0];
-  if(!file || !currentCustomer) return;
-
-  const reader=new FileReader();
-  reader.onload=ev=>{
-    const base64=ev.target.result;
-    const tempId=uuid();
-
-    fetch("https://dealpad-backend-1.onrender.com/send",{
-      method:"POST",
-      headers:{"Content-Type":"application/json"},
-      body:JSON.stringify({
-        to:currentCustomer,fileData:base64,fileName:file.name,
-        fileType:file.type,tempId
-      })
-    });
-
-    socket.emit("agent_message",{
-      to:currentCustomer,fileName:file.name,fileType:file.type,
-      fileData:base64,tempId
-    });
-
-    renderMessage({fileName:file.name,fileType:file.type,fileData:base64},"agent");
-    updateCustomerActivity(currentCustomer);
-    fileInput.value="";
-  };
-  reader.readAsDataURL(file);
+  e.preventDefault(); const file=fileInput.files[0]; if(!file || !currentCustomer) return;
+  const reader=new FileReader(); reader.onload=ev=>{
+    const base64=ev.target.result; const tempId=uuid();
+    fetch("https://dealpad-backend-1.onrender.com/send",{ method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({ to:currentCustomer,fileData:base64,fileName:file.name,fileType:file.type,tempId }) });
+    socket.emit("agent_message",{ to:currentCustomer,fileName:file.name,fileType:file.type,fileData:base64,tempId });
+    renderMessage({fileName:file.name,fileType:file.type,fileData:base64},"agent"); updateCustomerActivity(currentCustomer); fileInput.value="";
+  }; reader.readAsDataURL(file);
 };
 
 // Voice send
-let recorder = null;
-let chunks = [];
-let recordingMime = '';
-let isCancelled = false; // <-- add this flag
-
-recordBtn.onclick = async e => {
-  e.preventDefault();
-  if (!currentCustomer) return alert("Select a customer first.");
-
-  if (!recorder) {
-    // Start recording
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      if (MediaRecorder.isTypeSupported('audio/ogg;codecs=opus')) recordingMime = 'audio/ogg;codecs=opus';
-      else if (MediaRecorder.isTypeSupported('audio/webm;codecs=opus')) recordingMime = 'audio/webm;codecs=opus';
-      else recordingMime = '';
-
-      recorder = new MediaRecorder(stream, { mimeType: recordingMime });
-      chunks = [];
-      isCancelled = false; // reset flag when starting
-
-      recorder.ondataavailable = e => chunks.push(e.data);
-
-      recorder.onstop = () => {
-        if (isCancelled || !chunks.length) return; // ✅ skip sending
-
-        const blob = new Blob(chunks, { type: recordingMime || 'audio/ogg' });
-        chunks = [];
-
-        const reader = new FileReader();
-        reader.onload = ev => {
-          const base64 = ev.target.result;
-          const tempId = uuid();
-
-          fetch("https://dealpad-backend-1.onrender.com/send", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              to: currentCustomer,
-              audioData: base64,
-              voiceNote: true,
-              fileType: blob.type,
-              tempId
-            })
-          });
-
-          socket.emit("agent_message", {
-            to: currentCustomer,
-            voiceNote: true,
-            audioData: base64,
-            fileType: blob.type,
-            tempId
-          });
-
-          renderMessage({ voiceNote: true, audioData: base64, fileType: blob.type }, "agent");
+let recorder=null; let chunks=[]; let recordingMime=''; let isCancelled=false;
+recordBtn.onclick=async e=>{
+  e.preventDefault(); if(!currentCustomer) return alert("Select a customer first.");
+  if(!recorder){
+    try{
+      const stream=await navigator.mediaDevices.getUserMedia({audio:true});
+      if(MediaRecorder.isTypeSupported('audio/ogg;codecs=opus')) recordingMime='audio/ogg;codecs=opus';
+      else if(MediaRecorder.isTypeSupported('audio/webm;codecs=opus')) recordingMime='audio/webm;codecs=opus';
+      else recordingMime='';
+      recorder=new MediaRecorder(stream,{mimeType:recordingMime}); chunks=[]; isCancelled=false;
+      recorder.ondataavailable=e=>chunks.push(e.data);
+      recorder.onstop=()=>{
+        if(isCancelled || !chunks.length) return;
+        const blob=new Blob(chunks,{type:recordingMime||'audio/ogg'}); chunks=[];
+        const reader=new FileReader(); reader.onload=ev=>{
+          const base64=ev.target.result; const tempId=uuid();
+          fetch("https://dealpad-backend-1.onrender.com/send",{ method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({ to:currentCustomer, audioData:base64, voiceNote:true, fileType:blob.type, tempId }) });
+          socket.emit("agent_message",{ to:currentCustomer, voiceNote:true, audioData:base64, fileType:blob.type, tempId });
+          renderMessage({voiceNote:true,audioData:base64,fileType:blob.type},"agent");
           updateCustomerActivity(currentCustomer);
-        };
-        reader.readAsDataURL(blob);
+        }; reader.readAsDataURL(blob);
       };
-
-      recorder.start();
-      recordBtn.innerText = "⏹ Stop";
-      cancelRecordBtn.style.display = "inline-block"; // show cancel button
-
-    } catch {
-      alert("Microphone error.");
-    }
-
-  } else {
-    // Stop recording
-    recorder.stop();
-    recorder = null;
-    recordBtn.innerText = "🎤";
-    cancelRecordBtn.style.display = "none";
-  }
+      recorder.start(); recordBtn.innerText="⏹ Stop"; cancelRecordBtn.style.display="inline-block";
+    }catch{ alert("Microphone error."); }
+  }else{ recorder.stop(); recorder=null; recordBtn.innerText="🎤"; cancelRecordBtn.style.display="none"; }
 };
+cancelRecordBtn.onclick=()=>{ if(recorder){ isCancelled=true; recorder.stop(); recorder=null; chunks=[]; recordBtn.innerText="🎤"; cancelRecordBtn.style.display="none"; alert("Recording canceled!"); } };
 
-// Cancel button click
-cancelRecordBtn.onclick = () => {
-  if (recorder) {
-    isCancelled = true; // ✅ set flag to skip sending
-    recorder.stop();     // triggers onstop but now will not send
-    recorder = null;
-    chunks = [];
-    recordBtn.innerText = "🎤";
-    cancelRecordBtn.style.display = "none";
-    alert("Recording canceled!");
-  }
-};
+// Enter key send
+messageInput.onkeydown=e=>{ if(e.key==="Enter"){ e.preventDefault(); sendBtn.click(); } };
 
-// Enter send
-messageInput.onkeydown=e=>{
-  if(e.key==="Enter"){
-    e.preventDefault();
-    sendBtn.click();
-  }
-};
-
-// ✅ ADD LOGOUT BUTTON HANDLER HERE
-const logoutBtn = document.getElementById("logoutBtn");
-
-logoutBtn.onclick = () => {
+// Logout
+document.getElementById("logoutBtn").onclick=()=>{
   if(confirm("Are you sure you want to logout?")){
-    // Socket ko disconnect karo
-    socket.emit("agent_logout", agentId); // backend pe handle karna hoga
-    socket.disconnect();
-
-    // Local storage saaf karo
+    socket.emit("agent_logout", agentId); socket.disconnect();
     localStorage.removeItem("agentId");
-
-    // Login page redirect
-    window.location.href = "login.html";
+    window.location.href="login.html";
   }
 };
 
 loadCustomers();
-
 </script>
-
 </body>
 </html>
