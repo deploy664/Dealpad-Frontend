@@ -54,6 +54,8 @@ let activeChat = null;
 
 socket.on('connect',()=>{
   socket.emit('admin_register', adminId);
+  // Request initial list of chats for this admin
+  socket.emit('admin_get_all_chats');
 });
 
 // RECEIVE ALL CHATS (MASTER VIEW)
