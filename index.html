@@ -347,8 +347,10 @@ async function loadCustomers(){
 // Socket events
 socket.on("chat_history", msgs => {
   chatBox.innerHTML = "";
-  msgs.sort((a,b)=> new Date(a.created_at) - new Date(b.created_at));
-  msgs.forEach(m => renderMessage(m, m.sender));
+  msgs.forEach(m => {
+    // Always use renderMessage for all types
+    renderMessage(m, m.sender);
+  });
   chatBox.scrollTop = chatBox.scrollHeight;
 });
 
@@ -380,18 +382,21 @@ function renderMessage(msg,sender){
   const div=document.createElement("div");
   div.className=sender==="agent"?"agent-msg":"customer-msg";
 
-  if(msg.fileType && msg.fileData && msg.fileType.startsWith("image/")){
+  // Image
+  if(msg.fileType && msg.fileData && msg.fileType.startsWith("image")){
     const img=document.createElement("img");
     img.src=msg.fileData;
     img.className="message-image";
     div.appendChild(img);
   }
+  // Voice
   else if(msg.voiceNote && msg.audioData){
     const audio=document.createElement("audio");
     audio.controls=true;
     audio.src=msg.audioData;
     div.appendChild(audio);
   }
+  // File
   else if(msg.fileData && msg.fileName){
     const link=document.createElement("a");
     link.href=msg.fileData;
@@ -401,6 +406,7 @@ function renderMessage(msg,sender){
     link.innerText="📎 "+msg.fileName;
     div.appendChild(link);
   }
+  // Text
   else if(msg.message || msg.text){
     div.innerText=msg.message || msg.text;
   }
