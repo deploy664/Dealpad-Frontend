@@ -266,9 +266,17 @@ socket.on("new_customer",cust=>{ addCustomerToUI(cust.number); updateCustomerAct
 
 // Fixed incoming_message handler
 socket.on("incoming_message", data => {
-  addCustomerToUI(data.from); updateCustomerActivity(data.from);
-  renderMessage(data,"customer"); // always render for active customer
-  if(data.from !== currentCustomer){ markUnread(data.from); if(document.visibilityState==="visible"){ document.getElementById("notifSound").play().catch(()=>{}); } }
+  addCustomerToUI(data.from); 
+  updateCustomerActivity(data.from);
+
+  if(data.from === currentCustomer){
+    renderMessage(data,"customer"); // only render if the message is from current customer
+  } else {
+    markUnread(data.from); 
+    if(document.visibilityState==="visible"){
+      document.getElementById("notifSound").play().catch(()=>{}); 
+    }
+  }
 });
 
 // Send text
