@@ -184,6 +184,7 @@ fileInput.onchange = async () => {
 };
 
 function showFile(data) {
+        console.log("showFile data:", data);
     if (!data.fileData && !data.audioData) return;
 
     const div = document.createElement("div");
@@ -297,6 +298,7 @@ recordBtn.onclick = async () => {
 // 🔊 SHOW AUDIO
 // ======================================================
 function showAudio(data) {
+        console.log("showAudio data:", data);
     if (!data.audioData && !data.fileData) return;
 
     const div = document.createElement("div");
