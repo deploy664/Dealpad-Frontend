@@ -197,19 +197,30 @@ function showFile(data) {
         img.style.borderRadius = "6px";
         div.appendChild(img);
     }
-    // Images (base64 or WhatsApp CDN URL)
+    // Images (base64 from backend)
     else if (data.fileType && data.fileType.startsWith("image")) {
         const img = document.createElement("img");
-        img.src = data.fileData;
+        // Ensure base64 string is used for src
+        if (data.fileData && !data.fileData.startsWith('data:image')) {
+            img.src = `data:${data.fileType};base64,${data.fileData}`;
+        } else {
+            img.src = data.fileData;
+        }
         img.style.maxWidth = "200px";
         img.style.borderRadius = "6px";
         div.appendChild(img);
     }
-    // Audio/voice (base64 or WhatsApp CDN URL)
+    // Audio/voice (base64 from backend)
     else if (data.voiceNote && (data.audioData || data.fileData)) {
         const audio = document.createElement("audio");
         audio.controls = true;
-        audio.src = data.audioData || data.fileData;
+        // Ensure base64 string is used for src
+        let audioSrc = data.audioData || data.fileData;
+        if (audioSrc && !audioSrc.startsWith('data:audio')) {
+            audio.src = `data:audio/ogg;base64,${audioSrc}`;
+        } else {
+            audio.src = audioSrc;
+        }
         div.appendChild(audio);
     }
     // Other files (base64 or WhatsApp CDN URL)
@@ -293,7 +304,12 @@ function showAudio(data) {
 
     const audio = document.createElement("audio");
     audio.controls = true;
-    audio.src = data.audioData || data.fileData;
+    let audioSrc = data.audioData || data.fileData;
+    if (audioSrc && !audioSrc.startsWith('data:audio')) {
+        audio.src = `data:audio/ogg;base64,${audioSrc}`;
+    } else {
+        audio.src = audioSrc;
+    }
 
     div.appendChild(audio);
     chatBox.appendChild(div);
