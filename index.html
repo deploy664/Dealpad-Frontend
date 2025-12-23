@@ -302,15 +302,21 @@ socket.on("new_customer",cust=>{
 });
 
 socket.on("incoming_message", data => {
-  if(data.sender==="agent") return;
+  if(data.senderType === "agent") return;
+
   addCustomerToUI(data.from);
   updateCustomerActivity(data.from);
-  if(data.from===currentCustomer){ renderMessage(data,"customer"); }
-  else{
-    if(document.visibilityState==="visible"){ document.getElementById("notifSound").play().catch(()=>{}); }
+
+  if(data.from === currentCustomer){
+    renderMessage(data, "customer");
+  } else {
+    if(document.visibilityState === "visible"){
+      document.getElementById("notifSound").play().catch(()=>{});
+    }
     markUnread(data.from);
   }
 });
+
 
 // Render message
 function renderMessage(msg,sender){
@@ -382,14 +388,14 @@ fileInput.onchange = async () => {
       body: JSON.stringify(payload)
     });
 
-    // ✅ SHOW IN AGENT UI
-    renderMessage(m, m.senderType === "agent" ? "agent" : "customer");
-
+    // ✅ FIXED
+    renderMessage(payload, "agent");
   };
 
   reader.readAsDataURL(file);
   fileInput.value="";
 };
+
 
 
 
