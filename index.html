@@ -289,7 +289,8 @@ socket.on("chat_history", msgs => {
   msgs.sort((a,b)=> new Date(a.created_at)-new Date(b.created_at));
 
   msgs.forEach(m=>{
-    renderMessage(m, m.senderType === "agent" ? "agent" : "customer");
+    const sender = m.senderType === "agent" ? "agent" : "customer";
+    renderMessage(m, sender);
   });
 
   chatBox.scrollTop=chatBox.scrollHeight;
@@ -319,31 +320,53 @@ socket.on("incoming_message", data => {
 
 
 // Render message
-function renderMessage(msg,sender){
+function renderMessage(msg, sender){
+  if(!msg) return;
+
   const div=document.createElement("div");
   div.className=sender==="agent"?"agent-msg":"customer-msg";
-  if(msg.fileType && msg.fileData && msg.fileType.startsWith("image/")){
-    const img=document.createElement("img"); img.src=msg.fileData; img.className="message-image"; div.appendChild(img);
-  } else if(msg.voiceNote && msg.audioData){
-    const audio=document.createElement("audio"); audio.controls=true; audio.src=msg.audioData; div.appendChild(audio);
-  } else if(msg.fileData && msg.fileName){
-    const link=document.createElement("a"); link.href=msg.fileData; link.target="_blank"; link.download=msg.fileName; link.className="file-link"; link.innerText="📎 "+msg.fileName; div.appendChild(link);
-  } else if(msg.message || msg.text){ div.innerText=msg.message || msg.text; }
 
-  const meta=document.createElement("div"); meta.className="msg-meta";
-  let time="";
-  if(msg.created_at && !isNaN(new Date(msg.created_at))){
-    const d=new Date(msg.created_at);
-    const date=d.toLocaleDateString("en-GB",{day:"2-digit",month:"short",year:"numeric"});
-    const t=d.toLocaleTimeString([],{hour:"2-digit",minute:"2-digit"});
-    time=`${date} • ${t}`;
+  if(msg.fileType && msg.fileData && msg.fileType.startsWith("image/")){
+    const img=document.createElement("img");
+    img.src=msg.fileData;
+    img.className="message-image";
+    div.appendChild(img);
   }
-  let ticks=sender==="agent"?"✔✔":"";
-  meta.innerHTML=`<span>${time}</span> <span class="meta-ticks">${ticks}</span>`;
+  else if(msg.voiceNote && msg.audioData){
+    const audio=document.createElement("audio");
+    audio.controls=true;
+    audio.src=msg.audioData;
+    div.appendChild(audio);
+  }
+  else if(msg.fileData && msg.fileName){
+    const link=document.createElement("a");
+    link.href=msg.fileData;
+    link.download=msg.fileName;
+    link.target="_blank";
+    link.className="file-link";
+    link.innerText="📎 "+msg.fileName;
+    div.appendChild(link);
+  }
+  else if(msg.message || msg.text){
+    div.innerText=msg.message || msg.text;
+  }
+
+  const meta=document.createElement("div");
+  meta.className="msg-meta";
+
+  let time="";
+  if(msg.created_at){
+    const d=new Date(msg.created_at);
+    time=d.toLocaleString();
+  }
+
+  meta.innerHTML=`<span>${time}</span> ${sender==="agent"?"✔✔":""}`;
   div.appendChild(meta);
+
   chatBox.appendChild(div);
   chatBox.scrollTop=chatBox.scrollHeight;
 }
+
 
 // SEND BUTTON LOGIC (text, file, voice) ... [keep unchanged]
 sendBtn.onclick = async () => {
@@ -375,6 +398,7 @@ fileInput.onchange = async () => {
 
     const payload = {
       to: currentCustomer,
+      from: agentId,
       fileData: reader.result,
       fileType: file.type,
       fileName: file.name,
@@ -388,7 +412,7 @@ fileInput.onchange = async () => {
       body: JSON.stringify(payload)
     });
 
-    // ✅ FIXED
+    // ✅ HISTORY-COMPATIBLE RENDER
     renderMessage(payload, "agent");
   };
 
