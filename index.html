@@ -335,6 +335,75 @@ function renderMessage(msg,sender){
 }
 
 // SEND BUTTON LOGIC (text, file, voice) ... [keep unchanged]
+sendBtn.onclick = () => {
+  const text = messageInput.value.trim();
+  if(!text || !currentCustomer) return;
+
+  socket.emit("send_message", {
+    to: currentCustomer,
+    message: text,
+    sender: "agent"
+  });
+
+  renderMessage({ message: text, created_at: new Date() }, "agent");
+  messageInput.value = "";
+};
+attachBtn.onclick = () => fileInput.click();
+
+fileInput.onchange = () => {
+  if(!fileInput.files.length || !currentCustomer) return;
+
+  const file = fileInput.files[0];
+  const reader = new FileReader();
+
+  reader.onload = () => {
+  socket.emit("send_file", {
+    to: currentCustomer,
+    fileName: file.name,
+    fileType: file.type,
+    fileData: reader.result
+  });
+  fileInput.value = "";
+};
+
+
+  reader.readAsDataURL(file);
+};
+let mediaRecorder;
+let audioChunks = [];
+
+recordBtn.onclick = async () => {
+  audioChunks = [];
+  const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+  mediaRecorder = new MediaRecorder(stream);
+
+  mediaRecorder.ondataavailable = e => audioChunks.push(e.data);
+
+  mediaRecorder.onstop = () => {
+    const blob = new Blob(audioChunks, { type: "audio/webm" });
+    const reader = new FileReader();
+    reader.onload = () => {
+      socket.emit("send_voice", {
+        to: currentCustomer,
+        audioData: reader.result
+      });
+    };
+    reader.readAsDataURL(blob);
+  };
+
+  mediaRecorder.start();
+  recordBtn.style.display="none";
+  cancelRecordBtn.style.display="block";
+};
+
+cancelRecordBtn.onclick = () => {
+  if(mediaRecorder && mediaRecorder.state !== "inactive"){
+    mediaRecorder.stop();
+  }
+  recordBtn.style.display="block";
+  cancelRecordBtn.style.display="none";
+};
+
 
 // LOGOUT
 const logoutBtn = document.getElementById("logoutBtn");
