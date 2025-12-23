@@ -285,16 +285,21 @@ async function loadCustomers(){
 
 // Socket events for messages
 socket.on("chat_history", msgs => {
-  chatBox.innerHTML="";
-  msgs.sort((a,b)=> new Date(a.created_at)-new Date(b.created_at));
+  chatBox.innerHTML = "";
 
-  msgs.forEach(m=>{
-    const sender = m.senderType === "agent" ? "agent" : "customer";
-    renderMessage(m, sender);
-  });
+  msgs
+    .filter(m =>
+      (m.senderType === "agent" && m.to === currentCustomer) ||
+      (m.senderType !== "agent" && m.from === currentCustomer)
+    )
+    .sort((a,b)=> new Date(a.created_at) - new Date(b.created_at))
+    .forEach(m => {
+      renderMessage(m, m.senderType === "agent" ? "agent" : "customer");
+    });
 
-  chatBox.scrollTop=chatBox.scrollHeight;
+  chatBox.scrollTop = chatBox.scrollHeight;
 });
+
 
 
 socket.on("new_customer",cust=>{
