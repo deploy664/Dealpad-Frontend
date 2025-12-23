@@ -335,43 +335,51 @@ function renderMessage(msg,sender){
 }
 
 // SEND BUTTON LOGIC (text, file, voice) ... [keep unchanged]
-sendBtn.onclick = () => {
+sendBtn.onclick = async () => {
   const text = messageInput.value.trim();
-  if(!text || !currentCustomer) return;
+  if (!text || !currentCustomer) return;
 
-  socket.emit("agent_message", {
-  agentId,
-  to: currentCustomer,
-  text: text
-});
-
+  await fetch("https://dealpad-backend-1.onrender.com/send", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      to: currentCustomer,
+      message: text,
+      senderType: "agent"
+    })
+  });
 
   renderMessage({ message: text, created_at: new Date() }, "agent");
   messageInput.value = "";
 };
+
 attachBtn.onclick = () => fileInput.click();
 
-fileInput.onchange = () => {
+fileInput.onchange = async () => {
   if(!fileInput.files.length || !currentCustomer) return;
-
   const file = fileInput.files[0];
+
   const reader = new FileReader();
-
-  reader.onload = () => {
-  socket.emit("agent_file", {
-  agentId,
-  to: currentCustomer,
-  fileName: file.name,
-  fileType: file.type,
-  data: reader.result
-});
-
-  fileInput.value = "";
-};
-
-
+  reader.onload = async () => {
+    await fetch("https://dealpad-backend-1.onrender.com/send", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        to: currentCustomer,
+        fileData: reader.result,
+        fileType: file.type,
+        fileName: file.name,
+        senderType: "agent"
+      })
+    });
+  };
   reader.readAsDataURL(file);
+  fileInput.value="";
 };
+
+
+
+
 let mediaRecorder;
 let audioChunks = [];
 
@@ -382,18 +390,26 @@ recordBtn.onclick = async () => {
 
   mediaRecorder.ondataavailable = e => audioChunks.push(e.data);
 
-  mediaRecorder.onstop = () => {
+  mediaRecorder.onstop = async () => {
   const blob = new Blob(audioChunks, { type: "audio/webm" });
   const reader = new FileReader();
-  reader.onload = () => {
-    socket.emit("agent_voice", {
-      agentId,
-      to: currentCustomer,
-      audio: reader.result
+
+  reader.onload = async () => {
+    await fetch("https://dealpad-backend-1.onrender.com/send", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        to: currentCustomer,
+        audioData: reader.result,
+        fileType: "audio/webm",
+        voiceNote: true,
+        senderType: "agent"
+      })
     });
   };
   reader.readAsDataURL(blob);
 };
+
 
 
   mediaRecorder.start();
