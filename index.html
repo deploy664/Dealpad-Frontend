@@ -86,6 +86,7 @@
     <button id="recordBtn" style="background:#008069; border-radius:50%; width:60px; height:60px;">🎤</button>
     <button id="cancelRecordBtn" style="display:none; background:#e74c3c; border-radius:50%; width:60px; height:60px;">❌</button>
 
+
     <input type="text" id="messageInput" placeholder="Type your message..." />
     <button id="sendBtn" type="button">Send</button>
   </div>
@@ -133,43 +134,60 @@ const socket = io("https://dealpad-backend-1.onrender.com", {
   transports: ["websocket"]
 });
 
-// 👇 SOCKET EVENTS
+// 👇 YAHAN
 socket.on("connect", () => {
   socket.emit("register_agent", agentId);
 });
 
 socket.on("reconnect", () => {
   socket.emit("register_agent", agentId);
+
+  // 🔁 reload active chat (IMPORTANT)
   if(currentCustomer){
     socket.emit("load_messages", currentCustomer);
   }
 });
-
-// 👁️ TAB VISIBILITY
+// 👁️ TAB VISIBILITY HANDLER (IMPORTANT)
 document.addEventListener("visibilitychange", () => {
-  if(!document.hidden && !socket.connected){
-    console.log("Tab active → reconnecting socket");
-    socket.connect();
+  if(!document.hidden){
+    if(!socket.connected){
+      console.log("Tab active → reconnecting socket");
+      socket.connect();
+    }
   }
 });
+
+
+
 
 function uuid(){return Math.random().toString(36).substring(2)+Date.now().toString(36);}
 function sanitizeId(num){return "cust-"+num.replace(/\D/g,"");}
 
 // ---- Save name helpers ----
-function saveCustomerName(number, name){ localStorage.setItem("custName-"+number, name); }
-function getCustomerName(number){ return localStorage.getItem("custName-"+number); }
+function saveCustomerName(number, name){
+  localStorage.setItem("custName-"+number, name);
+}
+function getCustomerName(number){
+  return localStorage.getItem("custName-"+number);
+}
 function updateCustomerDisplayName(number){
   const li = document.getElementById(sanitizeId(number));
   if(!li) return;
   const nameSpan = li.querySelector(".customer-name");
   const name = getCustomerName(number);
-  if(nameSpan){ nameSpan.textContent = name ? `(${name})` : ''; }
+  if(nameSpan){
+    nameSpan.textContent = name ? `(${name})` : '';
+  }
 }
 
 // ---- Active timestamp helpers ----
-function updateCustomerActivity(number){ localStorage.setItem("custActive-"+number, Date.now()); moveCustomerToTop(number); }
-function getCustomerActivity(number){ return parseInt(localStorage.getItem("custActive-"+number)) || 0; }
+function updateCustomerActivity(number){
+  localStorage.setItem("custActive-"+number, Date.now());
+  moveCustomerToTop(number);
+}
+function getCustomerActivity(number){
+  return parseInt(localStorage.getItem("custActive-"+number)) || 0;
+}
 
 // ---- Add customer to UI ----
 function addCustomerToUI(number){
@@ -178,129 +196,161 @@ function addCustomerToUI(number){
   li.id=sanitizeId(number);
   li.dataset.number=number;
 
-  const numSpan = document.createElement('span'); numSpan.textContent = number;
-  const nameSpan = document.createElement('span'); nameSpan.className='customer-name';
-  const savedName = getCustomerName(number); if(savedName) nameSpan.textContent=`(${savedName})`;
+  // Number span
+  const numSpan = document.createElement('span');
+  numSpan.textContent = number;
 
+  // Name span
+  const nameSpan = document.createElement('span');
+  nameSpan.className = 'customer-name';
+  const savedName = getCustomerName(number);
+  if(savedName) nameSpan.textContent = `(${savedName})`;
+
+  // Save button
   const saveBtn = document.createElement('button');
-  saveBtn.className='save-btn'; saveBtn.innerHTML='💾'; saveBtn.title="Save/Edit Name";
-  saveBtn.onclick = e => {
+  saveBtn.className = 'save-btn';
+  saveBtn.innerHTML = '💾';
+  saveBtn.title = "Save/Edit Name";
+  saveBtn.onclick = (e)=>{
     e.stopPropagation();
     const newName = prompt(`Enter name for customer ${number}:`, getCustomerName(number) || "");
     if(newName && newName.trim().length>0){
-      saveCustomerName(number,newName.trim());
+      saveCustomerName(number, newName.trim());
       updateCustomerDisplayName(number);
       if(currentCustomer===number){
         customerNameEl.innerText = `Chat with ${number} (${newName.trim()})`;
+        
       }
     }
   };
 
-  const badgeArea=document.createElement('span'); badgeArea.className='badge-area'; badgeArea.style.marginLeft='auto';
-  li.onclick=()=>selectCustomer(number);
-  li.appendChild(numSpan); li.appendChild(nameSpan); li.appendChild(saveBtn); li.appendChild(badgeArea);
-  insertCustomerByActivity(li);
+  // Badge area
+  const badgeArea = document.createElement('span');
+  badgeArea.className='badge-area';
+  badgeArea.style.marginLeft='auto';
 
-  // restore unread
-  const unread = getUnread(number);
-  if(unread>0){ const badge=document.createElement("span"); badge.className="badge"; badge.innerText=unread; badgeArea.appendChild(badge); }
+  li.onclick=()=>selectCustomer(number);
+  li.appendChild(numSpan);
+  li.appendChild(nameSpan);
+  li.appendChild(saveBtn);
+  li.appendChild(badgeArea);
+
+  // Insert in correct position based on activity
+  insertCustomerByActivity(li);
+  // ✅ RESTORE UNREAD BADGE (reload / logout ke baad)
+const unread = getUnread(number);
+if(unread > 0){
+  const badge = document.createElement("span");
+  badge.className = "badge";
+  badge.innerText = unread;
+  badgeArea.appendChild(badge);
 }
 
-// Insert sorted
+
+}
+
+// Insert customer in list sorted by last activity
 function insertCustomerByActivity(li){
-  const number=li.dataset.number, activity=getCustomerActivity(number);
-  const children=Array.from(customerListEl.children);
-  let inserted=false;
+  const number = li.dataset.number;
+  const activity = getCustomerActivity(number);
+  const children = Array.from(customerListEl.children);
+  let inserted = false;
   for(let i=0;i<children.length;i++){
-    if(getCustomerActivity(children[i].dataset.number)<activity){
-      customerListEl.insertBefore(li,children[i]); inserted=true; break;
+    const childNum = children[i].dataset.number;
+    if(getCustomerActivity(childNum) < activity){
+      customerListEl.insertBefore(li, children[i]);
+      inserted = true;
+      break;
     }
   }
   if(!inserted) customerListEl.appendChild(li);
 }
-function moveCustomerToTop(number){ const li=document.getElementById(sanitizeId(number)); if(!li) return; li.remove(); insertCustomerByActivity(li); }
+
+// Move to top
+function moveCustomerToTop(number){
+  const li=document.getElementById(sanitizeId(number));
+  if(!li) return;
+  li.remove();
+  insertCustomerByActivity(li);
+}
 
 // Mark unread
 function markUnread(number){
-  if(number===currentCustomer) return;
-  let count=getUnread(number)+1; setUnread(number,count);
-  const li=document.getElementById(sanitizeId(number)); if(!li) return;
-  let badge=li.querySelector(".badge");
-  if(!badge){ badge=document.createElement("span"); badge.className="badge"; li.querySelector(".badge-area").appendChild(badge); }
-  badge.innerText=count;
+  if(number === currentCustomer) return;
+
+  let count = getUnread(number) + 1;
+  setUnread(number, count);
+
+  const li = document.getElementById(sanitizeId(number));
+  if(!li) return;
+
+  let badge = li.querySelector(".badge");
+  if(!badge){
+    badge = document.createElement("span");
+    badge.className = "badge";
+    li.querySelector(".badge-area").appendChild(badge);
+  }
+  badge.innerText = count;
 }
+
 
 // Clear unread
 function clearUnread(number){
   clearUnreadStorage(number);
-  const li=document.getElementById(sanitizeId(number)); if(!li) return;
-  const badge=li.querySelector(".badge"); if(badge) badge.remove();
+
+  const li = document.getElementById(sanitizeId(number));
+  if(!li) return;
+
+  const badge = li.querySelector(".badge");
+  if(badge) badge.remove();
 }
+
 
 // Select customer
 function selectCustomer(number){
   currentCustomer=number;
   updateCustomerActivity(number);
-  const savedName=getCustomerName(number);
-  customerNameEl.innerText = `Chat with ${number}${savedName?` (${savedName})`:''}`;
+  const savedName = getCustomerName(number);
+  customerNameEl.innerText = `Chat with ${number}${savedName ? ` (${savedName})` : ''}`;
   chatBox.innerHTML="";
   clearUnread(number);
   socket.emit("load_messages",number);
 }
 
-// --- NEW FUNCTION: Load unread counts from server ---
-async function loadUnreadCounts() {
-  try {
-    const res = await fetch(`https://dealpad-backend-1.onrender.com/agent/unread_counts?agentId=${agentId}`);
-    if(!res.ok) return;
-    const counts = await res.json(); // [{customer:"123456", unreadCount:2}, ...]
-    counts.forEach(c=>{
-      setUnread(c.customer, c.unreadCount);
-      markUnread(c.customer);
-    });
-  } catch(err){
-    console.log("❌ Failed to load unread counts:", err);
-  }
-}
-
-// Load customers
 async function loadCustomers(){
   customerListEl.innerHTML="<li>Loading...</li>";
   try{
-    const res = await fetch(`https://dealpad-backend-1.onrender.com/agent/customers?agentId=${agentId}`);
+    const res = await fetch(
+      `https://dealpad-backend-1.onrender.com/agent/customers?agentId=${agentId}`
+    );
     const customers = await res.json();
     customerListEl.innerHTML="";
+
     customers.sort((a,b)=>getCustomerActivity(b.number)-getCustomerActivity(a.number));
+
     customers.forEach(c=>{
       addCustomerToUI(c.number);
-      const unread=getUnread(c.number);
-      if(!currentCustomer || currentCustomer!==c.number){ if(unread>0) markUnread(c.number); }
+
+      // 🔔 fallback unread recovery
+      if(!currentCustomer || currentCustomer !== c.number){
+        const unread = getUnread(c.number);
+        if(unread > 0){
+          markUnread(c.number);
+        }
+      }
     });
-    // ✅ AFTER LOADING CUSTOMERS, LOAD UNREAD COUNTS
-    await loadUnreadCounts();
   }catch{
     customerListEl.innerHTML="<li>Error loading customers</li>";
   }
 }
 
-// Socket events for messages
+// Socket events
 socket.on("chat_history", msgs => {
   chatBox.innerHTML = "";
-
-  msgs
-    .filter(m =>
-      (m.senderType === "agent" && m.to === currentCustomer) ||
-      (m.senderType !== "agent" && m.from === currentCustomer)
-    )
-    .sort((a,b)=> new Date(a.created_at) - new Date(b.created_at))
-    .forEach(m => {
-      renderMessage(m, m.senderType === "agent" ? "agent" : "customer");
-    });
-
+  msgs.sort((a,b)=> new Date(a.created_at) - new Date(b.created_at));
+  msgs.forEach(m => renderMessage(m, m.sender));
   chatBox.scrollTop = chatBox.scrollHeight;
 });
-
-
 
 socket.on("new_customer",cust=>{
   addCustomerToUI(cust.number);
@@ -308,7 +358,7 @@ socket.on("new_customer",cust=>{
 });
 
 socket.on("incoming_message", data => {
-  if(data.senderType === "agent") return;
+  if(data.sender === "agent") return;
 
   addCustomerToUI(data.from);
   updateCustomerActivity(data.from);
@@ -316,8 +366,9 @@ socket.on("incoming_message", data => {
   if(data.from === currentCustomer){
     renderMessage(data, "customer");
   } else {
-    if(document.visibilityState === "visible"){
-      document.getElementById("notifSound").play().catch(()=>{});
+    // Tab visible hai toh notification play karo
+    if (document.visibilityState === "visible") {
+      document.getElementById("notifSound").play().catch(() => {});
     }
     markUnread(data.from);
   }
@@ -325,9 +376,7 @@ socket.on("incoming_message", data => {
 
 
 // Render message
-function renderMessage(msg, sender){
-  if(!msg) return;
-
+function renderMessage(msg,sender){
   const div=document.createElement("div");
   div.className=sender==="agent"?"agent-msg":"customer-msg";
 
@@ -346,8 +395,8 @@ function renderMessage(msg, sender){
   else if(msg.fileData && msg.fileName){
     const link=document.createElement("a");
     link.href=msg.fileData;
-    link.download=msg.fileName;
     link.target="_blank";
+    link.download=msg.fileName;
     link.className="file-link";
     link.innerText="📎 "+msg.fileName;
     div.appendChild(link);
@@ -358,146 +407,194 @@ function renderMessage(msg, sender){
 
   const meta=document.createElement("div");
   meta.className="msg-meta";
-
-  let time="";
-  if(msg.created_at){
+  let time = "";
+  if(msg.created_at && !isNaN(new Date(msg.created_at))){
     const d=new Date(msg.created_at);
-    time=d.toLocaleString();
+    const date = d.toLocaleDateString("en-GB",{day:"2-digit",month:"short",year:"numeric"});
+    const t = d.toLocaleTimeString([], {hour:"2-digit",minute:"2-digit"});
+    time = `${date} • ${t}`;
   }
 
-  meta.innerHTML=`<span>${time}</span> ${sender==="agent"?"✔✔":""}`;
+  let ticks=sender==="agent"?"✔✔":"";
+  meta.innerHTML=`<span>${time}</span> <span class="meta-ticks">${ticks}</span>`;
   div.appendChild(meta);
 
   chatBox.appendChild(div);
   chatBox.scrollTop=chatBox.scrollHeight;
 }
 
+// Send text
+sendBtn.onclick=e=>{
+  e.preventDefault();
+  const msg=messageInput.value.trim();
+  if(!msg || !currentCustomer) return;
 
-// SEND BUTTON LOGIC (text, file, voice) ... [keep unchanged]
-sendBtn.onclick = async () => {
-  const text = messageInput.value.trim();
-  if (!text || !currentCustomer) return;
+  const tempId=uuid();
 
-  await fetch("https://dealpad-backend-1.onrender.com/send", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      to: currentCustomer,
-      message: text,
-      senderType: "agent"
-    })
+  fetch("https://dealpad-backend-1.onrender.com/send",{
+    method:"POST",
+    headers:{"Content-Type":"application/json"},
+    body:JSON.stringify({ to:currentCustomer, message:msg, tempId })
   });
 
-  renderMessage({ message: text, created_at: new Date() }, "agent");
-  messageInput.value = "";
+  socket.emit("agent_message",{to:currentCustomer,message:msg,tempId});
+  renderMessage({message: msg, created_at: new Date().toISOString()},"agent");
+
+  updateCustomerActivity(currentCustomer);
+
+  messageInput.value="";
 };
 
-attachBtn.onclick = () => fileInput.click();
+// File send
+attachBtn.onclick=()=>fileInput.click();
 
-fileInput.onchange = async () => {
-  if(!fileInput.files.length || !currentCustomer) return;
-  const file = fileInput.files[0];
+fileInput.onchange=e=>{
+  e.preventDefault();
+  const file=fileInput.files[0];
+  if(!file || !currentCustomer) return;
 
-  const reader = new FileReader();
-  reader.onload = async () => {
+  const reader=new FileReader();
+  reader.onload=ev=>{
+    const base64=ev.target.result;
+    const tempId=uuid();
 
-    const payload = {
-      to: currentCustomer,
-      from: agentId,
-      fileData: reader.result,
-      fileType: file.type,
-      fileName: file.name,
-      senderType: "agent",
-      created_at: new Date()
-    };
-
-    await fetch("https://dealpad-backend-1.onrender.com/send", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload)
+    fetch("https://dealpad-backend-1.onrender.com/send",{
+      method:"POST",
+      headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({
+        to:currentCustomer,fileData:base64,fileName:file.name,
+        fileType:file.type,tempId
+      })
     });
 
-    // ✅ HISTORY-COMPATIBLE RENDER
-    renderMessage(payload, "agent");
-  };
+    socket.emit("agent_message",{
+      to:currentCustomer,fileName:file.name,fileType:file.type,
+      fileData:base64,tempId
+    });
 
+    renderMessage({fileName:file.name,fileType:file.type,fileData:base64},"agent");
+    updateCustomerActivity(currentCustomer);
+    fileInput.value="";
+  };
   reader.readAsDataURL(file);
-  fileInput.value="";
 };
 
+// Voice send
+let recorder = null;
+let chunks = [];
+let recordingMime = '';
+let isCancelled = false; // <-- add this flag
 
+recordBtn.onclick = async e => {
+  e.preventDefault();
+  if (!currentCustomer) return alert("Select a customer first.");
 
+  if (!recorder) {
+    // Start recording
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      if (MediaRecorder.isTypeSupported('audio/ogg;codecs=opus')) recordingMime = 'audio/ogg;codecs=opus';
+      else if (MediaRecorder.isTypeSupported('audio/webm;codecs=opus')) recordingMime = 'audio/webm;codecs=opus';
+      else recordingMime = '';
 
+      recorder = new MediaRecorder(stream, { mimeType: recordingMime });
+      chunks = [];
+      isCancelled = false; // reset flag when starting
 
-let mediaRecorder;
-let audioChunks = [];
+      recorder.ondataavailable = e => chunks.push(e.data);
 
-recordBtn.onclick = async () => {
-  audioChunks = [];
-  const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      recorder.onstop = () => {
+        if (isCancelled || !chunks.length) return; // ✅ skip sending
 
-  mediaRecorder = new MediaRecorder(stream, {
-    mimeType: "audio/webm;codecs=opus"
-  });
+        const blob = new Blob(chunks, { type: recordingMime || 'audio/ogg' });
+        chunks = [];
 
-  mediaRecorder.ondataavailable = e => audioChunks.push(e.data);
+        const reader = new FileReader();
+        reader.onload = ev => {
+          const base64 = ev.target.result;
+          const tempId = uuid();
 
-  mediaRecorder.onstop = async () => {
-    const blob = new Blob(audioChunks, { type: "audio/webm" });
-    const reader = new FileReader();
+          fetch("https://dealpad-backend-1.onrender.com/send", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              to: currentCustomer,
+              audioData: base64,
+              voiceNote: true,
+              fileType: blob.type,
+              tempId
+            })
+          });
 
-    reader.onload = async () => {
-      const payload = {
-        to: currentCustomer,
-        audioData: reader.result,
-        fileType: "audio/webm",
-        voiceNote: true,
-        senderType: "agent",
-        created_at: new Date()
+          socket.emit("agent_message", {
+            to: currentCustomer,
+            voiceNote: true,
+            audioData: base64,
+            fileType: blob.type,
+            tempId
+          });
+
+          renderMessage({ voiceNote: true, audioData: base64, fileType: blob.type }, "agent");
+          updateCustomerActivity(currentCustomer);
+        };
+        reader.readAsDataURL(blob);
       };
 
-      await fetch("https://dealpad-backend-1.onrender.com/send", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload)
-      });
+      recorder.start();
+      recordBtn.innerText = "⏹ Stop";
+      cancelRecordBtn.style.display = "inline-block"; // show cancel button
 
-      // ✅ SHOW IN AGENT UI
-      renderMessage(payload, "agent");
-    };
+    } catch {
+      alert("Microphone error.");
+    }
 
-    reader.readAsDataURL(blob);
-  };
-
-  mediaRecorder.start();
-  recordBtn.style.display="none";
-  cancelRecordBtn.style.display="block";
-};
-
-
-
-
-cancelRecordBtn.onclick = () => {
-  if(mediaRecorder && mediaRecorder.state !== "inactive"){
-    mediaRecorder.stop();
+  } else {
+    // Stop recording
+    recorder.stop();
+    recorder = null;
+    recordBtn.innerText = "🎤";
+    cancelRecordBtn.style.display = "none";
   }
-  recordBtn.style.display="block";
-  cancelRecordBtn.style.display="none";
 };
 
+// Cancel button click
+cancelRecordBtn.onclick = () => {
+  if (recorder) {
+    isCancelled = true; // ✅ set flag to skip sending
+    recorder.stop();     // triggers onstop but now will not send
+    recorder = null;
+    chunks = [];
+    recordBtn.innerText = "🎤";
+    cancelRecordBtn.style.display = "none";
+    alert("Recording canceled!");
+  }
+};
 
-// LOGOUT
+// Enter send
+messageInput.onkeydown=e=>{
+  if(e.key==="Enter"){
+    e.preventDefault();
+    sendBtn.click();
+  }
+};
+
+// ✅ ADD LOGOUT BUTTON HANDLER HERE
 const logoutBtn = document.getElementById("logoutBtn");
+
 logoutBtn.onclick = () => {
   if(confirm("Are you sure you want to logout?")){
-    socket.emit("agent_logout", agentId);
+    // Socket ko disconnect karo
+    socket.emit("agent_logout", agentId); // backend pe handle karna hoga
     socket.disconnect();
+
+    // Local storage saaf karo
     localStorage.removeItem("agentId");
-    window.location.href="login.html";
+
+    // Login page redirect
+    window.location.href = "login.html";
   }
 };
 
-// INIT
 loadCustomers();
 
 </script>
