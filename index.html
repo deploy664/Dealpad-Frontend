@@ -9,9 +9,9 @@
 <style>
 .container { display:flex; height:100vh; font-family: Arial, sans-serif; }
 .sidebar { width:260px; border-right:1px solid #ddd; padding:12px; box-sizing:border-box; overflow:auto; background:#5b2fe6; }
-.sidebar h2 { margin:0 0 12px 0; font-size:18px; color:#fff; }
+.sidebar h2 { margin:0 0 12px; color:#fff; }
 .sidebar ul { list-style:none; padding:0; margin:0; }
-.sidebar li { padding:12px; margin-bottom:12px; background:#fff; border-radius:8px; cursor:pointer; display:flex; align-items:center; font-weight:700; }
+.sidebar li { padding:12px; margin-bottom:10px; background:#fff; border-radius:8px; cursor:pointer; font-weight:700; }
 .sidebar li:hover { background:#f0f0f0; }
 
 .chat-section { flex:1; display:flex; flex-direction:column; }
@@ -38,8 +38,7 @@
   border:1px solid #eee;
 }
 
-.badge { background:#e74c3c; color:#fff; border-radius:10px; padding:2px 6px; font-size:12px; margin-left:auto; }
-img.message-image { max-width:200px; border-radius:8px; display:block; margin-top:6px; }
+img.message-image { max-width:200px; border-radius:8px; margin-top:6px; display:block; }
 .file-link { display:block; margin-top:6px; color:#1565c0; text-decoration:none; }
 audio { margin-top:6px; display:block; }
 
@@ -49,9 +48,6 @@ audio { margin-top:6px; display:block; }
 
 .msg-meta { font-size:11px; color:#666; margin-top:6px; display:flex; justify-content:flex-end; gap:6px; }
 .meta-ticks { color:#0084ff; }
-
-.customer-name { margin-left:6px; color:#555; font-weight:normal; }
-.save-btn { margin-left:6px; background:none; border:none; cursor:pointer; }
 </style>
 </head>
 
@@ -63,7 +59,9 @@ audio { margin-top:6px; display:block; }
 
 <div class="sidebar">
   <h2>Customers</h2>
-  <ul id="customerList"><li>Loading...</li></ul>
+  <ul id="customerList">
+    <li>Loading...</li>
+  </ul>
 </div>
 
 <div class="chat-section">
@@ -93,6 +91,9 @@ const customerListEl = document.getElementById("customerList");
 const chatBox = document.getElementById("chatBox");
 const customerNameEl = document.getElementById("customerName");
 const messageInput = document.getElementById("messageInput");
+const fileInput = document.getElementById("fileInput");
+const recordBtn = document.getElementById("recordBtn");
+const cancelRecordBtn = document.getElementById("cancelRecordBtn");
 
 let currentCustomer = null;
 const agentId = localStorage.getItem("agentId");
@@ -103,7 +104,7 @@ socket.on("connect",()=>socket.emit("register_agent",agentId));
 
 function renderMessage(msg,sender){
   const div=document.createElement("div");
-  div.className = sender==="agent"?"agent-msg":"customer-msg";
+  div.className = sender==="agent" ? "agent-msg" : "customer-msg";
 
   if(msg.fileType?.startsWith("image/") && (msg.fileData || msg.mediaUrl)){
     const img=document.createElement("img");
@@ -111,37 +112,61 @@ function renderMessage(msg,sender){
     img.className="message-image";
     div.appendChild(img);
 
-  }else if(msg.voiceNote && (msg.audioData || msg.mediaUrl)){
+  } else if(msg.voiceNote && (msg.audioData || msg.mediaUrl)){
     const audio=document.createElement("audio");
     audio.controls=true;
     audio.src=msg.audioData || msg.mediaUrl;
     div.appendChild(audio);
 
-  }else if(msg.fileName && (msg.fileData || msg.mediaUrl)){
+  } else if(msg.fileName && (msg.fileData || msg.mediaUrl)){
     const a=document.createElement("a");
     a.href=msg.fileData || msg.mediaUrl;
-    a.download=msg.fileName;
     a.className="file-link";
+    a.download=msg.fileName;
     a.innerText="📎 "+msg.fileName;
     div.appendChild(a);
 
-  }else{
-    div.innerText=msg.message || msg.text || "";
+  } else {
+    div.innerText = msg.message || msg.text || "";
   }
 
   const meta=document.createElement("div");
   meta.className="msg-meta";
-  meta.innerHTML=`<span>${new Date(msg.created_at||Date.now()).toLocaleString()}</span>${sender==="agent"?'<span class="meta-ticks">✔✔</span>':''}`;
+  meta.innerHTML=`<span>${new Date(msg.created_at||Date.now()).toLocaleString()}</span>${sender==="agent"?"<span class='meta-ticks'>✔✔</span>":""}`;
   div.appendChild(meta);
 
   chatBox.appendChild(div);
   chatBox.scrollTop=chatBox.scrollHeight;
 }
 
+async function loadCustomers(){
+  customerListEl.innerHTML="<li>Loading...</li>";
+  try{
+    const res = await fetch(`https://dealpad-backend-1.onrender.com/agent/customers?agentId=${agentId}`);
+    const customers = await res.json();
+    customerListEl.innerHTML="";
+    customers.forEach(c=>{
+      const li=document.createElement("li");
+      li.innerText=c.number;
+      li.onclick=()=>selectCustomer(c.number);
+      customerListEl.appendChild(li);
+    });
+  }catch{
+    customerListEl.innerHTML="<li>Error loading customers</li>";
+  }
+}
+
+function selectCustomer(number){
+  currentCustomer=number;
+  customerNameEl.innerText="Chat with "+number;
+  chatBox.innerHTML="";
+  socket.emit("load_messages",number);
+}
+
 socket.on("chat_history",msgs=>{
   chatBox.innerHTML="";
   msgs.forEach(m=>{
-    const sender = m.senderType==="agent" || m.sender==="agent" ? "agent":"customer";
+    const sender = m.senderType==="agent" || m.sender==="agent" ? "agent" : "customer";
     renderMessage(m,sender);
   });
 });
@@ -192,6 +217,8 @@ recordBtn.onclick=async()=>{
   };
   mediaRecorder.start();
 };
+
+loadCustomers();
 </script>
 
 </body>
