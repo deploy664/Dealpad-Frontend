@@ -4,443 +4,145 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>Support Dashboard</title>
-<link rel="stylesheet" href="style.css" />
 
 <style>
-  .container { display:flex; height:100vh; font-family: Arial, sans-serif; }
-  .sidebar { width:260px; border-right:1px solid #ddd; padding:12px; box-sizing:border-box; overflow:auto; background:#5b2fe6; }
-  .sidebar h2 { margin:0 0 12px 0; font-size:18px; color:#fff; }
-  .sidebar ul { list-style:none; padding:0; margin:0; }
-  .sidebar li { padding:12px; margin-bottom:12px; background:#fff; border-radius:8px; cursor:pointer; display:flex; justify-content:space-between; align-items:center; font-weight:700; }
-  .sidebar li:hover { background:#f0f0f0; }
+.container{display:flex;height:100vh;font-family:Arial}
+.sidebar{width:260px;background:#5b2fe6;padding:12px;color:#fff;overflow:auto}
+.sidebar li{background:#fff;color:#000;padding:12px;border-radius:8px;margin-bottom:10px;cursor:pointer;display:flex;align-items:center;font-weight:700}
+.sidebar li:hover{background:#f0f0f0}
+.badge{background:#e74c3c;color:#fff;border-radius:10px;padding:2px 6px;font-size:12px;margin-left:6px}
 
-  .chat-section { flex:1; display:flex; flex-direction:column; }
-  .chat-header { padding:12px; border-bottom:1px solid #eee; background:#f6f4f9; }
+.chat-section{flex:1;display:flex;flex-direction:column}
+.chat-box{flex:1;padding:16px;overflow:auto;background:#fafafa}
 
-  .chat-box { flex:1; padding:18px; overflow:auto; background:#fafafa; }
+.agent-msg{align-self:flex-end;background:#cce5ff;padding:8px;border-radius:8px;max-width:60%;margin:6px 0}
+.customer-msg{align-self:flex-start;background:#fff;padding:8px;border-radius:8px;max-width:60%;margin:6px 0;border:1px solid #eee}
 
-  .agent-msg {
-    align-self:flex-end;
-    background:#cce5ff;
-    padding:8px 10px;
-    border-radius:8px;
-    margin:6px 0;
-    max-width:60%;
-  }
+.chat-input{display:flex;gap:8px;padding:10px;border-top:1px solid #eee}
+.chat-input button{width:52px;height:52px;border-radius:50%;border:none;background:#008069;color:#fff;cursor:pointer}
+.chat-input input{flex:1;padding:10px;border-radius:10px;border:1px solid #ddd}
 
-  .customer-msg {
-    align-self:flex-start;
-    background:#fff;
-    padding:8px 10px;
-    border-radius:8px;
-    margin:6px 0;
-    max-width:60%;
-    border:1px solid #eee;
-  }
-
-  .badge { background:#e74c3c; color:#fff; border-radius:10px; padding:2px 6px; font-size:12px; margin-left:6px; }
-  img.message-image { max-width:200px; border-radius:8px; display:block; margin-top:6px; }
-  .file-link { display:block; margin-top:6px; color:#1565c0; text-decoration:none; }
-  audio { margin-top:6px; display:block; }
-
-  .chat-input { display:flex; gap:8px; padding:12px; border-top:1px solid #eee; align-items:center; background:#fff; }
-  .chat-input button {
-    padding:10px; border-radius:50%; border:none; background:#0d8b6f;
-    color:#fff; cursor:pointer; width:52px; height:52px;
-  }
-  .chat-input input[type="text"] {
-    flex:1; padding:12px; border-radius:10px; border:1px solid #ddd;
-  }
-  .msg-meta { font-size:11px; color:#666; margin-top:6px; display:flex; justify-content:flex-end; gap:6px; align-items:center; }
-  .meta-ticks { color:#0084ff; font-size:12px; }
-
-  .customer-name { margin-left: 6px; font-weight: normal; color: #555; }
-  .save-btn { margin-left: 8px; cursor: pointer; border: none; background: transparent; font-size: 16px; line-height: 1; padding: 0; }
+img{max-width:200px;border-radius:8px;margin-top:6px}
+audio{margin-top:6px}
 </style>
 </head>
 
 <body>
 
-<audio id="notifSound" src="notif.mp3" preload="auto"></audio>
+<audio id="notifSound" src="notif.mp3"></audio>
 
 <div class="container">
 
 <div class="sidebar">
-  <h2>Customers</h2>
-  <ul id="customerList">
-    <li>Loading customers...</li>
-  </ul>
+<h3>Customers</h3>
+<ul id="customerList"></ul>
 </div>
 
 <div class="chat-section">
-  <div class="chat-header" style="display:flex; justify-content:space-between; align-items:center; padding:12px; border-bottom:1px solid #eee; background:#f6f4f9;">
-    <h3 id="customerName">Select a customer</h3>
-    <button id="logoutBtn" style="background:#e74c3c; color:#fff; border:none; padding:6px 12px; border-radius:6px; cursor:pointer;">Logout</button>
-  </div>
+<h3 id="customerName">Select customer</h3>
+<div id="chatBox" class="chat-box"></div>
 
-  <div class="chat-box" id="chatBox"></div>
-
-  <div class="chat-input">
-    <button id="attachBtn" type="button">📎</button>
-    <input type="file" id="fileInput" hidden />
-    <button id="recordBtn" style="background:#008069; border-radius:50%; width:60px; height:60px;">🎤</button>
-    <button id="cancelRecordBtn" style="display:none; background:#e74c3c; border-radius:50%; width:60px; height:60px;">❌</button>
-
-    <input type="text" id="messageInput" placeholder="Type your message..." />
-    <button id="sendBtn" type="button">Send</button>
-  </div>
+<div class="chat-input">
+<button id="attachBtn">📎</button>
+<input type="file" id="fileInput" hidden />
+<button id="recordBtn">🎤</button>
+<button id="cancelRecordBtn" style="display:none;background:#e74c3c">❌</button>
+<input id="messageInput" placeholder="Message..." />
+<button id="sendBtn">Send</button>
+</div>
 </div>
 
 </div>
 
 <script src="https://dealpad-backend-1.onrender.com/socket.io/socket.io.js"></script>
-
 <script>
-document.addEventListener("submit", e => e.preventDefault());
+const socket=io("https://dealpad-backend-1.onrender.com",{transports:["websocket"]})
+const agentId=localStorage.getItem("agentId")
+if(!agentId) location.href="login.html"
 
-const customerListEl=document.getElementById('customerList');
-const chatBox=document.getElementById('chatBox');
-const customerNameEl=document.getElementById('customerName');
-const sendBtn=document.getElementById('sendBtn');
-const messageInput=document.getElementById('messageInput');
-const attachBtn=document.getElementById('attachBtn');
-const fileInput=document.getElementById('fileInput');
-const recordBtn=document.getElementById('recordBtn');
-const cancelRecordBtn = document.getElementById("cancelRecordBtn");
+socket.on("connect",()=>socket.emit("register_agent",agentId))
 
-function getUnread(number){
-  return parseInt(localStorage.getItem("unread-"+number)) || 0;
+let currentCustomer=null
+const chatBox=document.getElementById("chatBox")
+
+function renderMessage(m,sender){
+const d=document.createElement("div")
+d.className=sender==="agent"?"agent-msg":"customer-msg"
+
+if(m.fileType?.startsWith("image")){let i=document.createElement("img");i.src=m.fileData;d.appendChild(i)}
+else if(m.voiceNote){let a=document.createElement("audio");a.controls=true;a.src=m.audioData;d.appendChild(a)}
+else if(m.fileData){let l=document.createElement("a");l.href=m.fileData;l.innerText="📎 "+m.fileName;d.appendChild(l)}
+else d.innerText=m.message
+
+chatBox.appendChild(d)
+chatBox.scrollTop=chatBox.scrollHeight
 }
 
-function setUnread(number, count){
-  localStorage.setItem("unread-"+number, count);
+/* ================= SEND TEXT ================= */
+sendBtn.onclick=()=>{
+if(!currentCustomer||!messageInput.value.trim())return
+const msg=messageInput.value.trim()
+
+fetch("/send",{method:"POST",headers:{"Content-Type":"application/json"},
+body:JSON.stringify({to:currentCustomer,message:msg})})
+
+renderMessage({message:msg},"agent")
+socket.emit("agent_message",{to:currentCustomer,message:msg})
+messageInput.value=""
 }
 
-function clearUnreadStorage(number){
-  localStorage.removeItem("unread-"+number);
+/* ================= FILE ================= */
+attachBtn.onclick=()=>fileInput.click()
+fileInput.onchange=()=>{
+const f=fileInput.files[0]
+if(!f||!currentCustomer)return
+const r=new FileReader()
+r.onload=()=>{
+fetch("/send",{method:"POST",headers:{"Content-Type":"application/json"},
+body:JSON.stringify({to:currentCustomer,fileData:r.result,fileName:f.name,fileType:f.type})})
+renderMessage({fileData:r.result,fileName:f.name,fileType:f.type},"agent")
+}
+r.readAsDataURL(f)
 }
 
+/* ================= VOICE (OLD STYLE) ================= */
+let recorder,chunks=[],cancelled=false
 
-let currentCustomer=null;
-
-const agentId=localStorage.getItem("agentId");
-if(!agentId) window.location.href="login.html";
-
-const socket = io("https://dealpad-backend-1.onrender.com", {
-  reconnection: true,
-  reconnectionAttempts: Infinity,
-  reconnectionDelay: 1000,
-  transports: ["websocket"]
-});
-
-// 👇 SOCKET EVENTS
-socket.on("connect", () => {
-  socket.emit("register_agent", agentId);
-});
-
-socket.on("reconnect", () => {
-  socket.emit("register_agent", agentId);
-  if(currentCustomer){
-    socket.emit("load_messages", currentCustomer);
-  }
-});
-
-// 👁️ TAB VISIBILITY
-document.addEventListener("visibilitychange", () => {
-  if(!document.hidden && !socket.connected){
-    console.log("Tab active → reconnecting socket");
-    socket.connect();
-  }
-});
-
-function uuid(){return Math.random().toString(36).substring(2)+Date.now().toString(36);}
-function sanitizeId(num){return "cust-"+num.replace(/\D/g,"");}
-
-// ---- Save name helpers ----
-function saveCustomerName(number, name){ localStorage.setItem("custName-"+number, name); }
-function getCustomerName(number){ return localStorage.getItem("custName-"+number); }
-function updateCustomerDisplayName(number){
-  const li = document.getElementById(sanitizeId(number));
-  if(!li) return;
-  const nameSpan = li.querySelector(".customer-name");
-  const name = getCustomerName(number);
-  if(nameSpan){ nameSpan.textContent = name ? `(${name})` : ''; }
+recordBtn.onclick=async()=>{
+cancelled=false
+chunks=[]
+const stream=await navigator.mediaDevices.getUserMedia({audio:true})
+recorder=new MediaRecorder(stream)
+recorder.ondataavailable=e=>chunks.push(e.data)
+recorder.onstop=()=>{
+if(cancelled)return
+const blob=new Blob(chunks,{type:"audio/webm"})
+const r=new FileReader()
+r.onload=()=>{
+fetch("/send",{method:"POST",headers:{"Content-Type":"application/json"},
+body:JSON.stringify({to:currentCustomer,audioData:r.result,voiceNote:true,fileType:"audio/webm"})})
+renderMessage({audioData:r.result,voiceNote:true},"agent")
+}
+r.readAsDataURL(blob)
+}
+recorder.start()
+recordBtn.style.display="none"
+cancelRecordBtn.style.display="inline-block"
 }
 
-// ---- Active timestamp helpers ----
-function updateCustomerActivity(number){ localStorage.setItem("custActive-"+number, Date.now()); moveCustomerToTop(number); }
-function getCustomerActivity(number){ return parseInt(localStorage.getItem("custActive-"+number)) || 0; }
-
-// ---- Add customer to UI ----
-function addCustomerToUI(number){
-  if(document.getElementById(sanitizeId(number))) return;
-  const li=document.createElement("li");
-  li.id=sanitizeId(number);
-  li.dataset.number=number;
-
-  const numSpan = document.createElement('span'); numSpan.textContent = number;
-  const nameSpan = document.createElement('span'); nameSpan.className='customer-name';
-  const savedName = getCustomerName(number); if(savedName) nameSpan.textContent=`(${savedName})`;
-
-  const saveBtn = document.createElement('button');
-  saveBtn.className='save-btn'; saveBtn.innerHTML='💾'; saveBtn.title="Save/Edit Name";
-  saveBtn.onclick = e => {
-    e.stopPropagation();
-    const newName = prompt(`Enter name for customer ${number}:`, getCustomerName(number) || "");
-    if(newName && newName.trim().length>0){
-      saveCustomerName(number,newName.trim());
-      updateCustomerDisplayName(number);
-      if(currentCustomer===number){
-        customerNameEl.innerText = `Chat with ${number} (${newName.trim()})`;
-      }
-    }
-  };
-
-  const badgeArea=document.createElement('span'); badgeArea.className='badge-area'; badgeArea.style.marginLeft='auto';
-  li.onclick=()=>selectCustomer(number);
-  li.appendChild(numSpan); li.appendChild(nameSpan); li.appendChild(saveBtn); li.appendChild(badgeArea);
-  insertCustomerByActivity(li);
-
-  // restore unread
-  const unread = getUnread(number);
-  if(unread>0){ const badge=document.createElement("span"); badge.className="badge"; badge.innerText=unread; badgeArea.appendChild(badge); }
+cancelRecordBtn.onclick=()=>{
+cancelled=true
+recorder.stop()
+recordBtn.style.display="inline-block"
+cancelRecordBtn.style.display="none"
 }
 
-// Insert sorted
-function insertCustomerByActivity(li){
-  const number=li.dataset.number, activity=getCustomerActivity(number);
-  const children=Array.from(customerListEl.children);
-  let inserted=false;
-  for(let i=0;i<children.length;i++){
-    if(getCustomerActivity(children[i].dataset.number)<activity){
-      customerListEl.insertBefore(li,children[i]); inserted=true; break;
-    }
-  }
-  if(!inserted) customerListEl.appendChild(li);
-}
-function moveCustomerToTop(number){ const li=document.getElementById(sanitizeId(number)); if(!li) return; li.remove(); insertCustomerByActivity(li); }
-
-// Mark unread
-function markUnread(number){
-  if(number===currentCustomer) return;
-  let count=getUnread(number)+1; setUnread(number,count);
-  const li=document.getElementById(sanitizeId(number)); if(!li) return;
-  let badge=li.querySelector(".badge");
-  if(!badge){ badge=document.createElement("span"); badge.className="badge"; li.querySelector(".badge-area").appendChild(badge); }
-  badge.innerText=count;
-}
-
-// Clear unread
-function clearUnread(number){
-  clearUnreadStorage(number);
-  const li=document.getElementById(sanitizeId(number)); if(!li) return;
-  const badge=li.querySelector(".badge"); if(badge) badge.remove();
-}
-
-// Select customer
-function selectCustomer(number){
-  currentCustomer=number;
-  updateCustomerActivity(number);
-  const savedName=getCustomerName(number);
-  customerNameEl.innerText = `Chat with ${number}${savedName?` (${savedName})`:''}`;
-  chatBox.innerHTML="";
-  clearUnread(number);
-  socket.emit("load_messages",number);
-}
-
-// --- NEW FUNCTION: Load unread counts from server ---
-async function loadUnreadCounts() {
-  try {
-    const res = await fetch(`https://dealpad-backend-1.onrender.com/agent/unread_counts?agentId=${agentId}`);
-    if(!res.ok) return;
-    const counts = await res.json(); // [{customer:"123456", unreadCount:2}, ...]
-    counts.forEach(c=>{
-      setUnread(c.customer, c.unreadCount);
-      markUnread(c.customer);
-    });
-  } catch(err){
-    console.log("❌ Failed to load unread counts:", err);
-  }
-}
-
-// Load customers
-async function loadCustomers(){
-  customerListEl.innerHTML="<li>Loading...</li>";
-  try{
-    const res = await fetch(`https://dealpad-backend-1.onrender.com/agent/customers?agentId=${agentId}`);
-    const customers = await res.json();
-    customerListEl.innerHTML="";
-    customers.sort((a,b)=>getCustomerActivity(b.number)-getCustomerActivity(a.number));
-    customers.forEach(c=>{
-      addCustomerToUI(c.number);
-      const unread=getUnread(c.number);
-      if(!currentCustomer || currentCustomer!==c.number){ if(unread>0) markUnread(c.number); }
-    });
-    // ✅ AFTER LOADING CUSTOMERS, LOAD UNREAD COUNTS
-    await loadUnreadCounts();
-  }catch{
-    customerListEl.innerHTML="<li>Error loading customers</li>";
-  }
-}
-
-// Socket events for messages
-socket.on("chat_history", msgs => {
-  chatBox.innerHTML="";
-  msgs.sort((a,b)=> new Date(a.created_at)-new Date(b.created_at));
-  msgs.forEach(m=>renderMessage(m,m.sender));
-  chatBox.scrollTop=chatBox.scrollHeight;
-});
-
-socket.on("new_customer",cust=>{
-  addCustomerToUI(cust.number);
-  updateCustomerActivity(cust.number);
-});
-
-socket.on("incoming_message", data => {
-  if(data.sender==="agent") return;
-  addCustomerToUI(data.from);
-  updateCustomerActivity(data.from);
-  if(data.from===currentCustomer){ renderMessage(data,"customer"); }
-  else{
-    if(document.visibilityState==="visible"){ document.getElementById("notifSound").play().catch(()=>{}); }
-    markUnread(data.from);
-  }
-});
-
-// Render message
-function renderMessage(msg,sender){
-  const div=document.createElement("div");
-  div.className=sender==="agent"?"agent-msg":"customer-msg";
-  if(msg.fileType && msg.fileData && msg.fileType.startsWith("image/")){
-    const img=document.createElement("img"); img.src=msg.fileData; img.className="message-image"; div.appendChild(img);
-  } else if(msg.voiceNote && msg.audioData){
-    const audio=document.createElement("audio"); audio.controls=true; audio.src=msg.audioData; div.appendChild(audio);
-  } else if(msg.fileData && msg.fileName){
-    const link=document.createElement("a"); link.href=msg.fileData; link.target="_blank"; link.download=msg.fileName; link.className="file-link"; link.innerText="📎 "+msg.fileName; div.appendChild(link);
-  } else if(msg.message || msg.text){ div.innerText=msg.message || msg.text; }
-
-  const meta=document.createElement("div"); meta.className="msg-meta";
-  let time="";
-  if(msg.created_at && !isNaN(new Date(msg.created_at))){
-    const d=new Date(msg.created_at);
-    const date=d.toLocaleDateString("en-GB",{day:"2-digit",month:"short",year:"numeric"});
-    const t=d.toLocaleTimeString([],{hour:"2-digit",minute:"2-digit"});
-    time=`${date} • ${t}`;
-  }
-  let ticks=sender==="agent"?"✔✔":"";
-  meta.innerHTML=`<span>${time}</span> <span class="meta-ticks">${ticks}</span>`;
-  div.appendChild(meta);
-  chatBox.appendChild(div);
-  chatBox.scrollTop=chatBox.scrollHeight;
-}
-
-// SEND BUTTON LOGIC (text, file, voice) ... [keep unchanged]
-sendBtn.onclick = async () => {
-  const text = messageInput.value.trim();
-  if (!text || !currentCustomer) return;
-
-  await fetch("https://dealpad-backend-1.onrender.com/send", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      to: currentCustomer,
-      message: text,
-      senderType: "agent"
-    })
-  });
-
-  renderMessage({ message: text, created_at: new Date() }, "agent");
-  messageInput.value = "";
-};
-
-attachBtn.onclick = () => fileInput.click();
-
-fileInput.onchange = async () => {
-  if(!fileInput.files.length || !currentCustomer) return;
-  const file = fileInput.files[0];
-
-  const reader = new FileReader();
-  reader.onload = async () => {
-    await fetch("https://dealpad-backend-1.onrender.com/send", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        to: currentCustomer,
-        fileData: reader.result,
-        fileType: file.type,
-        fileName: file.name,
-        senderType: "agent"
-      })
-    });
-  };
-  reader.readAsDataURL(file);
-  fileInput.value="";
-};
-
-
-
-
-let mediaRecorder;
-let audioChunks = [];
-
-recordBtn.onclick = async () => {
-  audioChunks = [];
-  const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-  mediaRecorder = new MediaRecorder(stream);
-
-  mediaRecorder.ondataavailable = e => audioChunks.push(e.data);
-
-  mediaRecorder.onstop = async () => {
-  const blob = new Blob(audioChunks, { type: "audio/webm" });
-  const reader = new FileReader();
-
-  reader.onload = async () => {
-    await fetch("https://dealpad-backend-1.onrender.com/send", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        to: currentCustomer,
-        audioData: reader.result,
-        fileType: "audio/webm",
-        voiceNote: true,
-        senderType: "agent"
-      })
-    });
-  };
-  reader.readAsDataURL(blob);
-};
-
-
-
-  mediaRecorder.start();
-  recordBtn.style.display="none";
-  cancelRecordBtn.style.display="block";
-};
-
-cancelRecordBtn.onclick = () => {
-  if(mediaRecorder && mediaRecorder.state !== "inactive"){
-    mediaRecorder.stop();
-  }
-  recordBtn.style.display="block";
-  cancelRecordBtn.style.display="none";
-};
-
-
-// LOGOUT
-const logoutBtn = document.getElementById("logoutBtn");
-logoutBtn.onclick = () => {
-  if(confirm("Are you sure you want to logout?")){
-    socket.emit("agent_logout", agentId);
-    socket.disconnect();
-    localStorage.removeItem("agentId");
-    window.location.href="login.html";
-  }
-};
-
-// INIT
-loadCustomers();
+/* ================= RECEIVE ================= */
+socket.on("incoming_message",d=>{
+if(d.from!==currentCustomer)return
+renderMessage(d,"customer")
+})
 
 </script>
-
 </body>
 </html>
