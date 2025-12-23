@@ -339,11 +339,12 @@ sendBtn.onclick = () => {
   const text = messageInput.value.trim();
   if(!text || !currentCustomer) return;
 
-  socket.emit("send_message", {
-    to: currentCustomer,
-    message: text,
-    sender: "agent"
-  });
+  socket.emit("agent_message", {
+  agentId,
+  to: currentCustomer,
+  text: text
+});
+
 
   renderMessage({ message: text, created_at: new Date() }, "agent");
   messageInput.value = "";
@@ -357,12 +358,14 @@ fileInput.onchange = () => {
   const reader = new FileReader();
 
   reader.onload = () => {
-  socket.emit("send_file", {
-    to: currentCustomer,
-    fileName: file.name,
-    fileType: file.type,
-    fileData: reader.result
-  });
+  socket.emit("agent_file", {
+  agentId,
+  to: currentCustomer,
+  fileName: file.name,
+  fileType: file.type,
+  data: reader.result
+});
+
   fileInput.value = "";
 };
 
@@ -380,16 +383,18 @@ recordBtn.onclick = async () => {
   mediaRecorder.ondataavailable = e => audioChunks.push(e.data);
 
   mediaRecorder.onstop = () => {
-    const blob = new Blob(audioChunks, { type: "audio/webm" });
-    const reader = new FileReader();
-    reader.onload = () => {
-      socket.emit("send_voice", {
-        to: currentCustomer,
-        audioData: reader.result
-      });
-    };
-    reader.readAsDataURL(blob);
+  const blob = new Blob(audioChunks, { type: "audio/webm" });
+  const reader = new FileReader();
+  reader.onload = () => {
+    socket.emit("agent_voice", {
+      agentId,
+      to: currentCustomer,
+      audio: reader.result
+    });
   };
+  reader.readAsDataURL(blob);
+};
+
 
   mediaRecorder.start();
   recordBtn.style.display="none";
