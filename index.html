@@ -74,7 +74,7 @@
 
 <div class="chat-section">
   <div class="chat-header" style="display:flex; justify-content:space-between; align-items:center; padding:12px; border-bottom:1px solid #eee; background:#f6f4f9;">
-    <h3 id="customerName">Select a customer</h3>
+    <h3 id="customerName">Welcome</h3>
     <button id="logoutBtn" style="background:#e74c3c; color:#fff; border:none; padding:6px 12px; border-radius:6px; cursor:pointer;">Logout</button>
   </div>
 
@@ -102,6 +102,10 @@ document.addEventListener("submit", e => e.preventDefault());
 const customerListEl=document.getElementById('customerList');
 const chatBox=document.getElementById('chatBox');
 const customerNameEl=document.getElementById('customerName');
+const agentUsername = localStorage.getItem("agentUsername") || "Agent";
+customerNameEl.innerText = `Welcome, ${agentUsername}`;
+
+
 const sendBtn=document.getElementById('sendBtn');
 const messageInput=document.getElementById('messageInput');
 const attachBtn=document.getElementById('attachBtn');
@@ -308,14 +312,20 @@ function clearUnread(number){
 
 // Select customer
 function selectCustomer(number){
-  currentCustomer=number;
+  currentCustomer = number;
   updateCustomerActivity(number);
+
   const savedName = getCustomerName(number);
-  customerNameEl.innerText = `Chat with ${number}${savedName ? ` (${savedName})` : ''}`;
+  const agent = localStorage.getItem("agentUsername") || "Agent";
+
+  customerNameEl.innerText =
+    `${agent} | Chat with ${number}${savedName ? ` (${savedName})` : ''}`;
+
   chatBox.innerHTML="";
   clearUnread(number);
-  socket.emit("load_messages",number);
+  socket.emit("load_messages", number);
 }
+
 
 async function loadCustomers(){
   customerListEl.innerHTML="<li>Loading...</li>";
@@ -589,6 +599,8 @@ logoutBtn.onclick = () => {
 
     // Local storage saaf karo
     localStorage.removeItem("agentId");
+    localStorage.removeItem("agentUsername");
+
 
     // Login page redirect
     window.location.href = "login.html";

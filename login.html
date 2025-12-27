@@ -90,9 +90,11 @@ async function login(){
 
     if(role === "admin"){
       localStorage.setItem("adminId", data.adminId);
+      localStorage.setItem("adminUsername", username); // ✅
       window.location.href = "admin.html";
     }else{
       localStorage.setItem("agentId", data.agentId);
+      localStorage.setItem("agentUsername", username); // ✅
       window.location.href = "index.html";
     }
   }else{
