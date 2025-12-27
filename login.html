@@ -94,7 +94,7 @@ async function login(){
       window.location.href = "admin.html";
     }else{
       localStorage.setItem("agentId", data.agentId);
-      localStorage.setItem("agentUsername", username); // ✅
+      localStorage.setItem("agentUsername", data.username); // ✅
       window.location.href = "index.html";
     }
   }else{
